@@ -1,0 +1,23 @@
+{
+  "name": "reservation-system",
+  "version": "1.0.0",
+  "description": "Acest proiect prezintă un **sistem simplu de rezervări** construit în TypeScript, folosind un model de date funcțional și persistență în MongoDB.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "ts-node src/main.ts",
+    "build": "tsc"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "mongodb": "^7.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.3"
+  }
+}
