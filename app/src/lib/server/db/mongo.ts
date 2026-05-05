@@ -1,26 +1,29 @@
-import { MongoClient, Db } from 'mongodb';
-import { MONGODB_URI, MONGODB_DB } from '$env/static/private';
+import { MongoClient, type Db } from 'mongodb';
+import { env } from '$env/dynamic/private';
 
-let client: MongoClient;
-let db: Db;
+let client: MongoClient | undefined;
+let db: Db | undefined;
 
 export async function connectToDatabase(): Promise<Db> {
 	if (db) {
 		return db;
 	}
 
-	if (!MONGODB_URI) {
+	const uri = env.MONGODB_URI;
+	const dbName = env.MONGODB_DB;
+
+	if (!uri) {
 		throw new Error('MONGODB_URI is not defined');
 	}
 
-	if (!MONGODB_DB) {
+	if (!dbName) {
 		throw new Error('MONGODB_DB is not defined');
 	}
 
-	client = new MongoClient(MONGODB_URI);
+	client = new MongoClient(uri);
 	await client.connect();
 
-	db = client.db(MONGODB_DB);
+	db = client.db(dbName);
 
 	return db;
 }
