@@ -1,3 +1,8 @@
-node_modules/
-dist/
+node_modules
+dist
 .env
+
+app/node_modules
+app/.svelte-kit
+app/build
+app/.env
