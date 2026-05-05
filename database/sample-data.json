@@ -1,0 +1,82 @@
+{
+  "users": [
+    {
+      "id": "user_1",
+      "name": "Andrei Popescu",
+      "email": "andrei.popescu@example.com",
+      "role": "student"
+    },
+    {
+      "id": "user_2",
+      "name": "Maria Ionescu",
+      "email": "maria.ionescu@example.com",
+      "role": "teacher"
+    },
+    {
+      "id": "user_3",
+      "name": "Admin User",
+      "email": "admin@example.com",
+      "role": "admin"
+    }
+  ],
+  "resources": [
+    {
+      "id": "resource_1",
+      "name": "Computer Science Laboratory",
+      "type": "laboratory",
+      "location": "Building A, Room 101",
+      "capacity": 30,
+      "timeSlots": [
+        {
+          "id": "slot_1",
+          "start": "2026-05-10T09:00:00.000Z",
+          "end": "2026-05-10T10:00:00.000Z",
+          "isAvailable": true
+        },
+        {
+          "id": "slot_2",
+          "start": "2026-05-10T10:00:00.000Z",
+          "end": "2026-05-10T11:00:00.000Z",
+          "isAvailable": true
+        }
+      ]
+    },
+    {
+      "id": "resource_2",
+      "name": "Conference Room",
+      "type": "room",
+      "location": "Building B, Room 205",
+      "capacity": 15,
+      "timeSlots": [
+        {
+          "id": "slot_3",
+          "start": "2026-05-11T12:00:00.000Z",
+          "end": "2026-05-11T13:00:00.000Z",
+          "isAvailable": true
+        },
+        {
+          "id": "slot_4",
+          "start": "2026-05-11T13:00:00.000Z",
+          "end": "2026-05-11T14:00:00.000Z",
+          "isAvailable": true
+        }
+      ]
+    },
+    {
+      "id": "resource_3",
+      "name": "Projector",
+      "type": "equipment",
+      "location": "Administrative Office",
+      "capacity": 1,
+      "timeSlots": [
+        {
+          "id": "slot_5",
+          "start": "2026-05-12T08:00:00.000Z",
+          "end": "2026-05-12T09:00:00.000Z",
+          "isAvailable": true
+        }
+      ]
+    }
+  ],
+  "reservations": []
+}
