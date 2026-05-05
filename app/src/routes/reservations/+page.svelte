@@ -2,16 +2,16 @@
 	import { onMount } from 'svelte';
 	import type { Reservation, Resource, TimeSlot, User } from '$lib/domain/types';
 
-	let users: User[] = [];
-	let resources: Resource[] = [];
-	let reservations: Reservation[] = [];
+	let users = $state<User[]>([]);
+	let resources = $state<Resource[]>([]);
+	let reservations = $state<Reservation[]>([]);
 
-	let selectedUserId = '';
-	let selectedResourceId = '';
-	let selectedTimeSlotId = '';
+	let selectedUserId = $state('');
+	let selectedResourceId = $state('');
+	let selectedTimeSlotId = $state('');
 
-	let message = '';
-	let loading = false;
+	let message = $state('');
+	let loading = $state(false);
 
 	function getSelectedResource(): Resource | undefined {
 		return resources.find((resource) => resource.id === selectedResourceId);
@@ -74,7 +74,6 @@
 		}
 
 		message = 'Reservation created successfully.';
-
 		selectedTimeSlotId = '';
 
 		await loadData();
@@ -118,7 +117,7 @@
 				Resource
 				<select
 					bind:value={selectedResourceId}
-					on:change={() => {
+					onchange={() => {
 						selectedTimeSlotId = '';
 					}}
 				>
@@ -144,7 +143,7 @@
 			</label>
 		</div>
 
-		<button on:click={createNewReservation} disabled={loading}>
+		<button onclick={createNewReservation} disabled={loading}>
 			{loading ? 'Saving...' : 'Create reservation'}
 		</button>
 
@@ -156,25 +155,29 @@
 	<section class="card">
 		<h2>Available resources</h2>
 
-		<div class="resource-list">
-			{#each resources as resource}
-				<article class="resource">
-					<h3>{resource.name}</h3>
-					<p><strong>Type:</strong> {resource.type}</p>
-					<p><strong>Location:</strong> {resource.location}</p>
-					<p><strong>Capacity:</strong> {resource.capacity}</p>
+		{#if resources.length === 0}
+			<p>No resources found. Run the database seed endpoint first.</p>
+		{:else}
+			<div class="resource-list">
+				{#each resources as resource}
+					<article class="resource">
+						<h3>{resource.name}</h3>
+						<p><strong>Type:</strong> {resource.type}</p>
+						<p><strong>Location:</strong> {resource.location}</p>
+						<p><strong>Capacity:</strong> {resource.capacity}</p>
 
-					<ul>
-						{#each resource.timeSlots as slot}
-							<li>
-								{new Date(slot.start).toLocaleString()} —
-								{slot.isAvailable ? 'Available' : 'Reserved'}
-							</li>
-						{/each}
-					</ul>
-				</article>
-			{/each}
-		</div>
+						<ul>
+							{#each resource.timeSlots as slot}
+								<li>
+									{new Date(slot.start).toLocaleString()} —
+									{slot.isAvailable ? 'Available' : 'Reserved'}
+								</li>
+							{/each}
+						</ul>
+					</article>
+				{/each}
+			</div>
+		{/if}
 	</section>
 
 	<section class="card">
@@ -190,6 +193,7 @@
 						<th>User</th>
 						<th>Resource</th>
 						<th>Start</th>
+						<th>End</th>
 						<th>Status</th>
 					</tr>
 				</thead>
@@ -200,6 +204,7 @@
 							<td>{reservation.userId}</td>
 							<td>{reservation.resourceId}</td>
 							<td>{new Date(reservation.start).toLocaleString()}</td>
+							<td>{new Date(reservation.end).toLocaleString()}</td>
 							<td>{reservation.status}</td>
 						</tr>
 					{/each}
@@ -240,6 +245,11 @@
 		box-shadow: 0 8px 20px rgba(0, 0, 0, 0.05);
 	}
 
+	.card h2 {
+		margin-top: 0;
+		margin-bottom: 16px;
+	}
+
 	.form-grid {
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -258,6 +268,7 @@
 		padding: 10px;
 		border: 1px solid #ccc;
 		border-radius: 8px;
+		background: white;
 	}
 
 	button {
@@ -290,6 +301,10 @@
 		border: 1px solid #e5e5e5;
 		border-radius: 10px;
 		background: #fafafa;
+	}
+
+	.resource h3 {
+		margin-top: 0;
 	}
 
 	table {
