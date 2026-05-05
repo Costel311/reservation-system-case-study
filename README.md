@@ -1,730 +1,467 @@
-# Reservation System – Studiu de caz TypeScript + MongoDB
+# Hierarchical and Non-Relational Data Structures in MongoDB: A Reservation Management System Case Study
 
-## 1. Descriere generală
+## 1. Project Overview
 
-Acest proiect prezintă un **sistem simplu de rezervări** construit în TypeScript, folosind un model de date funcțional și persistență în MongoDB.
+This project is a full-stack reservation management system developed with **SvelteKit**, **TypeScript** and **MongoDB**.
 
-Aplicația permite:
+The project was created as a case study for the topic:
 
-- definirea utilizatorilor;
-- definirea resurselor rezervabile;
-- crearea unei rezervări pentru o anumită resursă într-un interval de timp;
-- validarea existenței utilizatorului;
-- validarea existenței resursei;
-- verificarea disponibilității resursei;
-- salvarea și încărcarea stării aplicației din MongoDB.
+**Hierarchical and Non-Relational Data Structures in MongoDB**
 
-Studiul de caz evidențiază folosirea unor concepte precum:
+The application demonstrates how a reservation system can be modeled using MongoDB documents, embedded arrays and references between collections.
 
-- modelare de domeniu;
-- tipuri TypeScript;
-- validare funcțională;
-- tipuri `Maybe` și `Validation`;
-- funcții pure;
-- management de stare prin `StateFn`;
-- persistență cu MongoDB.
+The system allows users to:
+
+- view available resources
+- view available time slots
+- create reservations
+- store reservations in MongoDB
+- update resource availability after a reservation is created
 
 ---
 
-## 2. Scopul aplicației
+## 2. Technologies Used
 
-Scopul aplicației este să permită rezervarea unei resurse, de exemplu o sală de conferințe, de către un utilizator existent în sistem.
-
-O rezervare poate fi creată doar dacă:
-
-1. utilizatorul există;
-2. resursa există;
-3. resursa este disponibilă în intervalul de timp cerut.
-
-Dacă una dintre condiții nu este îndeplinită, aplicația întoarce o eroare de validare și starea sistemului rămâne neschimbată.
-
----
-
-## 3. Modelul datelor
-
-Modelul de date definește entitățile principale ale aplicației.
-
-```ts
-export type ID = string;
-
-export interface User {
-  id: ID;
-  name: string;
-}
-
-export interface Resource {
-  id: ID;
-  name: string;
-}
-
-export interface TimeSlot {
-  start: Date;
-  end: Date;
-}
-
-export interface Reservation {
-  id: ID;
-  user: ID;
-  resource: ID;
-  slot: TimeSlot;
-  createdAt: Date;
-}
-
-export interface SystemState {
-  users: Map<ID, User>;
-  resources: Map<ID, Resource>;
-  reservations: Map<ID, Reservation>;
-}
-
-export type StateFn<S, A> = (s: S) => [A, S];
-```
-
-### Explicație
-
-| Element | Rol |
+| Technology | Purpose |
 |---|---|
-| `ID` | Reprezintă identificatorul unic al unei entități. |
-| `User` | Reprezintă un utilizator al sistemului. |
-| `Resource` | Reprezintă o resursă care poate fi rezervată. |
-| `TimeSlot` | Definește intervalul de timp al rezervării. |
-| `Reservation` | Reprezintă rezervarea propriu-zisă. |
-| `SystemState` | Reprezintă starea completă a aplicației. |
-| `StateFn` | Reprezintă o funcție care primește o stare și returnează un rezultat plus o stare nouă. |
+| SvelteKit | Full-stack web framework |
+| Svelte | User interface |
+| TypeScript | Static typing and domain logic |
+| MongoDB | Non-relational document database |
+| Node.js | JavaScript runtime |
+| npm | Package manager |
+| GitHub | Version control and public repository hosting |
 
 ---
 
-## 4. Validarea modelului
-
-Pentru validare sunt folosite două tipuri funcționale:
-
-- `Maybe<T>`;
-- `Validation<T>`.
-
-Acestea ajută la tratarea sigură a valorilor lipsă și a erorilor.
-
----
-
-## 5. Tipul `Maybe`
-
-Tipul `Maybe<T>` este folosit atunci când o valoare poate exista sau poate lipsi.
-
-```ts
-export type Maybe<T> =
-  | { kind: "some"; value: T }
-  | { kind: "none" };
-
-export const Maybe = {
-  some: <T>(value: T): Maybe<T> => ({ kind: "some", value }),
-
-  none: <T>(): Maybe<T> => ({ kind: "none" }),
-
-  map:
-    <A, B>(f: (a: A) => B) =>
-    (m: Maybe<A>): Maybe<B> =>
-      m.kind === "some" ? Maybe.some(f(m.value)) : Maybe.none()
-};
-```
-
-### Explicație
-
-`Maybe` este util pentru operații de căutare. De exemplu, când se caută un utilizator după ID, acesta poate fi găsit sau nu.
-
-- Dacă valoarea există, rezultatul este `{ kind: "some", value }`.
-- Dacă valoarea nu există, rezultatul este `{ kind: "none" }`.
-
-Acest lucru evită folosirea directă a valorilor `null` sau `undefined`.
-
----
-
-## 6. Tipul `Validation`
-
-Tipul `Validation<T>` este folosit pentru operații care pot reuși sau pot eșua cu una sau mai multe erori.
-
-```ts
-export type Validation<T> =
-  | { ok: true; value: T }
-  | { ok: false; errors: string[] };
-
-export function isFailure<T>(
-  v: Validation<T>
-): v is { ok: false; errors: string[] } {
-  return v.ok === false;
-}
-
-export const Validation = {
-  ok: <T>(value: T): Validation<T> => ({ ok: true, value }),
-
-  fail: <T>(...errors: string[]): Validation<T> => ({
-    ok: false,
-    errors
-  }),
-
-  map:
-    <A, B>(f: (a: A) => B) =>
-    (v: Validation<A>): Validation<B> =>
-      isFailure(v)
-        ? Validation.fail(...v.errors)
-        : Validation.ok(f(v.value))
-};
-```
-
-### Explicație
-
-`Validation` permite întoarcerea unui rezultat valid sau a unei liste de erori.
-
-Exemple de erori posibile:
-
-- `User not found`;
-- `Resource not found`;
-- `Resource not available`.
-
----
-
-## 7. Logica aplicației
-
-Logica aplicației este responsabilă de:
-
-- căutarea entităților;
-- verificarea existenței utilizatorului;
-- verificarea existenței resursei;
-- verificarea disponibilității;
-- crearea unei rezervări.
-
----
-
-## 8. Funcția `lookup`
-
-```ts
-export const lookup =
-  <A>(m: Map<ID, A>) =>
-  (id: ID): Maybe<A> =>
-    m.has(id) ? Maybe.some(m.get(id)!) : Maybe.none();
-```
-
-### Explicație
-
-Funcția `lookup` caută o valoare într-un `Map`, folosind un ID.
-
-Dacă valoarea există, se returnează `Maybe.some`. Dacă nu există, se returnează `Maybe.none`.
-
----
-
-## 9. Funcția `require`
-
-```ts
-export const require =
-  <A>(err: string) =>
-  (m: Maybe<A>): Validation<A> =>
-    m.kind === "some" ? Validation.ok(m.value) : Validation.fail(err);
-```
-
-### Explicație
-
-Funcția `require` transformă un rezultat de tip `Maybe` într-un rezultat de tip `Validation`.
-
-Dacă valoarea există, validarea reușește. Dacă valoarea lipsește, validarea eșuează cu mesajul primit ca parametru.
-
----
-
-## 10. Verificarea existenței utilizatorului și resursei
-
-```ts
-export const ensureUserExists =
-  (id: ID) =>
-  (state: SystemState) =>
-    require("User not found")(lookup(state.users)(id));
-
-export const ensureResourceExists =
-  (id: ID) =>
-  (state: SystemState) =>
-    require("Resource not found")(lookup(state.resources)(id));
-```
-
-### Explicație
-
-Aceste funcții verifică dacă un utilizator sau o resursă există în starea curentă a sistemului.
-
-Dacă entitatea există, se returnează un rezultat valid. Dacă nu există, se returnează o eroare.
-
----
-
-## 11. Verificarea disponibilității resursei
-
-```ts
-export const isAvailable =
-  (slot: TimeSlot, resourceId: ID) =>
-  (state: SystemState): boolean =>
-    [...state.reservations.values()].every(
-      r =>
-        r.resource !== resourceId ||
-        r.slot.end <= slot.start ||
-        r.slot.start >= slot.end
-    );
-```
-
-### Explicație
-
-Funcția `isAvailable` verifică dacă o resursă este liberă într-un anumit interval de timp.
-
-Condiția folosită este următoarea:
-
-O resursă este disponibilă dacă fiecare rezervare existentă respectă una dintre situațiile:
-
-1. rezervarea aparține altei resurse;
-2. rezervarea existentă se termină înainte de începerea noului interval;
-3. rezervarea existentă începe după terminarea noului interval.
-
-Dacă există suprapunere între două intervale pentru aceeași resursă, rezervarea nu este permisă.
-
----
-
-## 12. Crearea unei rezervări
-
-```ts
-export const createReservation =
-  (
-    userId: ID,
-    resourceId: ID,
-    slot: TimeSlot
-  ): StateFn<SystemState, Validation<Reservation>> =>
-  state => {
-    const userV = ensureUserExists(userId)(state);
-
-    if (isFailure(userV)) {
-      return [userV, state];
-    }
-
-    const resV = ensureResourceExists(resourceId)(state);
-
-    if (isFailure(resV)) {
-      return [resV, state];
-    }
-
-    if (!isAvailable(slot, resourceId)(state)) {
-      return [Validation.fail("Resource not available"), state];
-    }
-
-    const reservation: Reservation = {
-      id: crypto.randomUUID(),
-      user: userId,
-      resource: resourceId,
-      slot,
-      createdAt: new Date()
-    };
-
-    const newState: SystemState = {
-      ...state,
-      reservations: new Map(state.reservations).set(
-        reservation.id,
-        reservation
-      )
-    };
-
-    return [Validation.ok(reservation), newState];
-  };
-```
-
-### Explicație pas cu pas
-
-Funcția `createReservation` primește:
-
-- ID-ul utilizatorului;
-- ID-ul resursei;
-- intervalul de timp dorit.
-
-Apoi execută următorii pași:
-
-1. verifică dacă utilizatorul există;
-2. verifică dacă resursa există;
-3. verifică dacă resursa este disponibilă;
-4. creează obiectul `Reservation`;
-5. creează o stare nouă a sistemului;
-6. returnează rezervarea creată și noua stare.
-
-Un aspect important este că starea inițială nu este modificată direct. În schimb, se creează o nouă stare folosind:
-
-```ts
-new Map(state.reservations).set(reservation.id, reservation)
-```
-
-Această abordare este apropiată de stilul funcțional, deoarece evită modificarea directă a datelor existente.
-
----
-
-## 13. Nivelul de persistență
-
-Pentru persistență se folosește MongoDB.
-
-```ts
-import { MongoClient } from "mongodb";
-import { User, Resource, Reservation, SystemState } from "./domain";
-
-export const mongo = new MongoClient("mongodb://localhost:27017");
-export const db = mongo.db("reservation_system");
-
-export async function loadStateFromMongo(): Promise<SystemState> {
-  const users = await db.collection<User>("users").find().toArray();
-  const resources = await db.collection<Resource>("resources").find().toArray();
-  const reservations = await db
-    .collection<Reservation>("reservations")
-    .find()
-    .toArray();
-
-  return {
-    users: new Map(users.map(u => [u.id, u])),
-    resources: new Map(resources.map(r => [r.id, r])),
-    reservations: new Map(reservations.map(r => [r.id, r]))
-  };
-}
-
-export async function saveStateToMongo(state: SystemState) {
-  await db.collection("users").deleteMany({});
-  await db.collection("resources").deleteMany({});
-  await db.collection("reservations").deleteMany({});
-
-  await db.collection("users").insertMany([...state.users.values()]);
-  await db.collection("resources").insertMany([...state.resources.values()]);
-  await db.collection("reservations").insertMany([
-    ...state.reservations.values()
-  ]);
-}
-```
-
-### Explicație
-
-Funcția `loadStateFromMongo` citește datele din colecțiile MongoDB:
-
-- `users`;
-- `resources`;
-- `reservations`.
-
-Apoi transformă aceste date în obiecte `Map`, pentru a recrea starea aplicației.
-
-Funcția `saveStateToMongo` salvează starea curentă în MongoDB.
-
-Înainte de salvare, colecțiile sunt golite cu `deleteMany({})`, apoi sunt inserate valorile existente în starea aplicației.
-
----
-
-## 14. Fișierul `main.ts`
-
-Fișierul `main.ts` reprezintă punctul de intrare al aplicației.
-
-```ts
-import { createReservation } from "./domain/logic";
-import { TimeSlot } from "./domain/types";
-import {
-  mongo,
-  db,
-  loadStateFromMongo,
-  saveStateToMongo
-} from "./persistence";
-
-async function main() {
-  await mongo.connect();
-
-  const existingUsers = await db.collection("users").countDocuments();
-
-  if (existingUsers === 0) {
-    await db.collection("users").insertOne({
-      id: "u1",
-      name: "Alice"
-    });
-
-    await db.collection("resources").insertOne({
-      id: "r1",
-      name: "Conference Room A"
-    });
-  }
-
-  const state = await loadStateFromMongo();
-
-  const slot: TimeSlot = {
-    start: new Date("2026-04-21T10:00:00"),
-    end: new Date("2026-04-21T11:00:00")
-  };
-
-  console.log("Attempting reservation...");
-
-  const [result, newState] = createReservation("u1", "r1", slot)(state);
-
-  if (result.ok) {
-    console.log("Reservation created:", result.value);
-  } else {
-    console.log("Failed:", result.errors);
-  }
-
-  await saveStateToMongo(newState);
-
-  console.log("\nState after operation:");
-  console.log([...newState.reservations.values()]);
-
-  await mongo.close();
-}
-
-main();
-```
-
-### Explicație
-
-Aplicația realizează următoarele acțiuni:
-
-1. se conectează la MongoDB;
-2. verifică dacă există utilizatori în baza de date;
-3. dacă nu există, inserează un utilizator și o resursă implicită;
-4. încarcă starea sistemului din MongoDB;
-5. definește un interval de timp pentru rezervare;
-6. încearcă să creeze o rezervare;
-7. afișează rezultatul;
-8. salvează noua stare în MongoDB;
-9. închide conexiunea la baza de date.
-
----
-
-## 15. Structura recomandată a proiectului
-
-O structură clară pentru proiect poate fi următoarea:
+## 3. Repository Structure
 
 ```txt
-reservation-system/
-│
-├── src/
-│   ├── domain/
-│   │   ├── types.ts
-│   │   ├── functors.ts
-│   │   └── logic.ts
+reservation-system-case-study/
+├── app/
+│   ├── src/
+│   │   ├── lib/
+│   │   │   ├── domain/
+│   │   │   │   ├── types.ts
+│   │   │   │   ├── maybe.ts
+│   │   │   │   ├── validation.ts
+│   │   │   │   ├── state.ts
+│   │   │   │   └── reservation.ts
+│   │   │   │
+│   │   │   └── server/
+│   │   │       └── db/
+│   │   │           └── mongo.ts
+│   │   │
+│   │   └── routes/
+│   │       ├── +page.svelte
+│   │       ├── reservations/
+│   │       │   └── +page.svelte
+│   │       └── api/
+│   │           ├── reservations/
+│   │           │   └── +server.ts
+│   │           ├── users/
+│   │           │   └── +server.ts
+│   │           ├── resources/
+│   │           │   └── +server.ts
+│   │           └── seed/
+│   │               └── +server.ts
 │   │
-│   ├── persistence/
-│   │   └── index.ts
-│   │
-│   └── main.ts
+│   ├── .env.example
+│   ├── package.json
+│   └── vite.config.ts
 │
-├── package.json
-├── tsconfig.json
-└── README.md
+├── database/
+│   ├── mongodb-model.md
+│   └── sample-data.json
+│
+├── docs/
+│   └── application-architecture.md
+│
+├── README.md
+└── .gitignore
 ```
 
 ---
 
-## 16. Instalare și rulare
+## 4. Main Features
 
-### Cerințe
+The application includes the following features:
 
-Pentru rularea proiectului sunt necesare:
-
-- Node.js;
-- TypeScript;
-- MongoDB instalat local;
-- pachetul `mongodb`.
-
----
-
-### Instalarea dependențelor
-
-```bash
-npm init -y
-npm install mongodb
-npm install -D typescript ts-node @types/node
-```
+- SvelteKit frontend interface
+- SvelteKit backend API routes
+- MongoDB database connection
+- TypeScript domain model
+- reservation validation
+- resource availability update
+- seed endpoint for sample data
+- MongoDB documentation
+- application architecture documentation
 
 ---
 
-### Inițializarea TypeScript
+## 5. MongoDB Data Model
 
-```bash
-npx tsc --init
-```
-
----
-
-### Rularea aplicației
-
-```bash
-npx ts-node src/main.ts
-```
-
----
-
-## 17. Exemplu de rezultat în consolă
-
-La prima rulare, aplicația va crea automat un utilizator și o resursă.
-
-Un posibil rezultat este:
+The MongoDB database is named:
 
 ```txt
-Attempting reservation...
-Reservation created: {
-  id: "generated-uuid",
-  user: "u1",
-  resource: "r1",
-  slot: {
-    start: 2026-04-21T10:00:00.000Z,
-    end: 2026-04-21T11:00:00.000Z
-  },
-  createdAt: 2026-04-21T09:30:00.000Z
+reservation_system
+```
+
+The application uses three main collections:
+
+```txt
+users
+resources
+reservations
+```
+
+### Users
+
+The `users` collection stores the users who can create reservations.
+
+Example:
+
+```json
+{
+  "id": "user_1",
+  "name": "Andrei Popescu",
+  "email": "andrei.popescu@example.com",
+  "role": "student"
 }
-
-State after operation:
-[
-  {
-    id: "generated-uuid",
-    user: "u1",
-    resource: "r1",
-    slot: {
-      start: 2026-04-21T10:00:00.000Z,
-      end: 2026-04-21T11:00:00.000Z
-    },
-    createdAt: 2026-04-21T09:30:00.000Z
-  }
-]
 ```
 
-Dacă se încearcă o rezervare pe același interval pentru aceeași resursă, rezultatul va fi:
+### Resources
+
+The `resources` collection stores reservable resources such as rooms, laboratories or equipment.
+
+This collection demonstrates a hierarchical MongoDB structure because each resource document contains embedded time slots.
+
+Example:
+
+```json
+{
+  "id": "resource_1",
+  "name": "Computer Science Laboratory",
+  "type": "laboratory",
+  "location": "Building A, Room 101",
+  "capacity": 30,
+  "timeSlots": [
+    {
+      "id": "slot_1",
+      "start": "2026-05-10T09:00:00.000Z",
+      "end": "2026-05-10T10:00:00.000Z",
+      "isAvailable": true
+    }
+  ]
+}
+```
+
+### Reservations
+
+The `reservations` collection stores confirmed reservations.
+
+Example:
+
+```json
+{
+  "id": "res_123456",
+  "userId": "user_1",
+  "resourceId": "resource_1",
+  "timeSlotId": "slot_1",
+  "start": "2026-05-10T09:00:00.000Z",
+  "end": "2026-05-10T10:00:00.000Z",
+  "status": "confirmed",
+  "createdAt": "2026-05-05T20:00:00.000Z"
+}
+```
+
+More details are available in:
 
 ```txt
-Attempting reservation...
-Failed: [ "Resource not available" ]
+database/mongodb-model.md
 ```
 
 ---
 
-## 18. Scenarii de validare
+## 6. Hierarchical and Non-Relational Structure
 
-### Scenariul 1: Utilizator valid și resursă disponibilă
+The main hierarchical structure is represented by the `resources` collection.
 
-Date de intrare:
+Each resource contains an embedded array of time slots:
 
-```ts
-createReservation("u1", "r1", slot)
+```txt
+Resource
+└── TimeSlot[]
+    ├── TimeSlot
+    └── TimeSlot
 ```
 
-Rezultat:
+This is suitable for MongoDB because a resource and its time slots naturally form a document hierarchy.
 
-```ts
-Validation.ok(reservation)
+The project uses both:
+
+- embedded documents: `Resource -> timeSlots[]`
+- references: `Reservation -> userId`, `resourceId`, `timeSlotId`
+
+This combination demonstrates a practical non-relational data model.
+
+---
+
+## 7. SvelteKit Application
+
+The SvelteKit application is stored in the `app` folder.
+
+The frontend pages are:
+
+```txt
+app/src/routes/+page.svelte
+app/src/routes/reservations/+page.svelte
+```
+
+The API routes are:
+
+```txt
+app/src/routes/api/users/+server.ts
+app/src/routes/api/resources/+server.ts
+app/src/routes/api/reservations/+server.ts
+app/src/routes/api/seed/+server.ts
+```
+
+The MongoDB connection utility is:
+
+```txt
+app/src/lib/server/db/mongo.ts
+```
+
+The TypeScript domain logic is stored in:
+
+```txt
+app/src/lib/domain/
 ```
 
 ---
 
-### Scenariul 2: Utilizator inexistent
+## 8. API Endpoints
 
-Date de intrare:
-
-```ts
-createReservation("u999", "r1", slot)
-```
-
-Rezultat:
-
-```ts
-Validation.fail("User not found")
-```
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/users` | GET | Returns all users |
+| `/api/resources` | GET | Returns all resources and embedded time slots |
+| `/api/reservations` | GET | Returns all reservations |
+| `/api/reservations` | POST | Creates a new reservation |
+| `/api/seed` | POST | Inserts sample data into MongoDB |
 
 ---
 
-### Scenariul 3: Resursă inexistentă
+## 9. Domain Logic
 
-Date de intrare:
+The project separates domain logic from the user interface and database access.
 
-```ts
-createReservation("u1", "r999", slot)
-```
+The domain layer contains:
 
-Rezultat:
-
-```ts
-Validation.fail("Resource not found")
-```
-
----
-
-### Scenariul 4: Resursă deja rezervată
-
-Date de intrare:
-
-```ts
-createReservation("u1", "r1", slot)
-```
-
-Dacă există deja o rezervare pentru aceeași resursă și același interval, rezultatul este:
-
-```ts
-Validation.fail("Resource not available")
-```
-
----
-
-## 19. Observații despre abordarea funcțională
-
-Proiectul folosește mai multe idei inspirate din programarea funcțională.
-
-### 19.1 Funcții pure
-
-Funcțiile precum `lookup`, `require`, `ensureUserExists`, `ensureResourceExists` și `isAvailable` sunt funcții predictibile, care produc același rezultat pentru aceleași date de intrare.
-
-### 19.2 Imutabilitate
-
-În loc să se modifice direct lista de rezervări, se creează o hartă nouă:
-
-```ts
-new Map(state.reservations).set(reservation.id, reservation)
-```
-
-Aceasta ajută la păstrarea unui comportament mai sigur și mai ușor de testat.
-
-### 19.3 Tratarea explicită a erorilor
-
-În loc să se arunce excepții, aplicația folosește tipul `Validation`.
-
-Astfel, erorile sunt tratate explicit și pot fi afișate sau prelucrate mai ușor.
-
-### 19.4 Separarea responsabilităților
-
-Codul este împărțit în mai multe niveluri:
-
-| Nivel | Responsabilitate |
+| File | Purpose |
 |---|---|
-| Domeniu | Definește tipurile și regulile aplicației. |
-| Validare | Gestionează rezultatele valide sau erorile. |
-| Logică | Creează rezervări și verifică disponibilitatea. |
-| Persistență | Încarcă și salvează datele în MongoDB. |
-| Main | Rulează aplicația și conectează modulele între ele. |
+| `types.ts` | Defines User, Resource, TimeSlot, Reservation and SystemState |
+| `maybe.ts` | Defines Maybe type |
+| `validation.ts` | Defines validation result types |
+| `state.ts` | Defines StateFn |
+| `reservation.ts` | Implements createReservation |
+
+The main function is:
+
+```txt
+createReservation
+```
+
+It validates:
+
+- if the user exists
+- if the resource exists
+- if the selected time slot exists
+- if the time slot is available
+- if the selected time slot is not already reserved
 
 ---
 
-## 20. Puncte forte ale soluției
+## 10. Environment Configuration
 
-Soluția are mai multe avantaje:
+The real environment file must be created locally:
 
-- cod clar și modular;
-- validări explicite;
-- separarea logicii de business de persistență;
-- folosirea TypeScript pentru siguranță la nivel de tipuri;
-- folosirea MongoDB pentru salvarea datelor;
-- posibilitatea de extindere cu noi funcționalități.
+```txt
+app/.env
+```
 
----
+Example content:
 
-## 21. Posibile îmbunătățiri
+```env
+MONGODB_URI=mongodb://127.0.0.1:27017
+MONGODB_DB=reservation_system
+```
 
-Aplicația poate fi extinsă prin:
+The repository contains only:
 
-- adăugarea unei interfețe web;
-- adăugarea autentificării utilizatorilor;
-- implementarea ștergerii rezervărilor;
-- implementarea modificării rezervărilor;
-- adăugarea testelor unitare;
-- validarea suplimentară a intervalului de timp;
-- prevenirea rezervărilor cu dată de început mai mare decât data de final;
-- folosirea unui repository separat pentru persistență;
-- salvarea incrementală, fără ștergerea tuturor colecțiilor la fiecare operație.
+```txt
+app/.env.example
+```
+
+The real `.env` file is ignored by Git.
 
 ---
 
-## 22. Concluzie
+## 11. Installation and Running the Project
 
-Acest studiu de caz demonstrează cum poate fi construit un sistem simplu de rezervări folosind TypeScript, MongoDB și principii funcționale.
+### Step 1: Clone the repository
 
-Aplicația este organizată în mod clar, separând modelul de date, validarea, logica de business și persistența. Folosirea tipurilor `Maybe` și `Validation` ajută la tratarea controlată a valorilor lipsă și a erorilor, iar `StateFn` permite modelarea operațiilor care transformă starea sistemului.
+```bash
+git clone <repository-url>
+cd reservation-system-case-study
+```
 
-Prin această abordare, codul devine mai ușor de citit, testat, întreținut și extins.
+### Step 2: Enter the SvelteKit application folder
+
+```bash
+cd app
+```
+
+### Step 3: Install dependencies
+
+```bash
+npm install
+```
+
+### Step 4: Create the `.env` file
+
+Create a file named:
+
+```txt
+app/.env
+```
+
+Add:
+
+```env
+MONGODB_URI=mongodb://127.0.0.1:27017
+MONGODB_DB=reservation_system
+```
+
+### Step 5: Start MongoDB locally
+
+MongoDB must be running locally before using the application.
+
+### Step 6: Start the development server
+
+```bash
+npm run dev
+```
+
+The application will be available at:
+
+```txt
+http://localhost:5173
+```
+
+The reservations page will be available at:
+
+```txt
+http://localhost:5173/reservations
+```
+
+---
+
+## 12. Seeding the Database
+
+After starting the development server, open a second terminal and run:
+
+```powershell
+Invoke-RestMethod -Method POST http://localhost:5173/api/seed
+```
+
+This inserts sample users and resources into MongoDB.
+
+After seeding, open:
+
+```txt
+http://localhost:5173/reservations
+```
+
+---
+
+## 13. Testing the API
+
+The following URLs can be used for testing:
+
+```txt
+http://localhost:5173/api/users
+http://localhost:5173/api/resources
+http://localhost:5173/api/reservations
+```
+
+To create a reservation, use the `/reservations` page from the browser.
+
+---
+
+## 14. Reservation Creation Flow
+
+The reservation creation process works as follows:
+
+1. The user opens the `/reservations` page.
+2. The page loads users, resources and reservations from the API.
+3. The user selects a user, a resource and a time slot.
+4. The page sends a POST request to `/api/reservations`.
+5. The API loads the current state from MongoDB.
+6. The `createReservation` function validates the request.
+7. If the request is valid, a new reservation is created.
+8. The reservation is inserted into the `reservations` collection.
+9. The selected time slot is marked as unavailable in the related resource document.
+10. The page reloads the updated data.
+
+---
+
+## 15. Documentation
+
+Additional documentation is available in:
+
+```txt
+database/mongodb-model.md
+docs/application-architecture.md
+```
+
+The MongoDB documentation explains:
+
+- collections
+- embedded documents
+- references
+- hierarchical data structures
+- advantages and limitations of the model
+
+The application architecture documentation explains:
+
+- SvelteKit structure
+- API layer
+- frontend/backend integration
+- MongoDB connection
+- domain logic
+
+---
+
+## 16. Academic Purpose
+
+This project was developed for an academic article about:
+
+```txt
+Hierarchical and Non-Relational Data Structures in MongoDB
+```
+
+The practical case study is a reservation management system implemented with SvelteKit and MongoDB.
+
+The project demonstrates how MongoDB can represent hierarchical data using embedded documents and arrays, while SvelteKit provides the frontend and backend API routes in a single full-stack application.
+
+---
+
+## 17. Conclusion
+
+This reservation management system demonstrates how SvelteKit, TypeScript and MongoDB can be combined to build a full-stack application based on hierarchical and non-relational data structures.
+
+MongoDB is used to store users, resources, time slots and reservations, while SvelteKit provides the user interface and server-side API endpoints.
+
+The project is suitable as a practical case study for document-oriented database modeling.
