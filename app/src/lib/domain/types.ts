@@ -2,7 +2,7 @@ export type UserRole = 'student' | 'teacher' | 'admin' | 'guest';
 
 export type ReservationStatus = 'confirmed' | 'cancelled';
 
-export type ResourceType = 'room' | 'laboratory' | 'equipment' | 'other';
+export type ResourceType = 'room' | 'laboratory' | 'equipment' | 'tour' | 'other';
 
 export interface User {
 	id: string;
