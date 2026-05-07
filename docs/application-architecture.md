@@ -6,8 +6,9 @@ This project is a reservation management system implemented with SvelteKit, Type
 
 The application allows users to:
 
+- view available users
 - view available resources
-- view available time slots
+- select one of several predefined available time slots
 - create reservations
 - store reservation data in MongoDB
 - update resource availability after a reservation is created
@@ -17,8 +18,6 @@ The project was developed as a case study for hierarchical and non-relational da
 ---
 
 ## 2. Technologies Used
-
-The project uses the following technologies:
 
 | Technology | Purpose |
 |---|---|
@@ -34,8 +33,6 @@ The project uses the following technologies:
 
 ## 3. Project Structure
 
-The project is organized as follows:
-
 ```txt
 reservation-system-case-study/
 ├── app/
@@ -47,11 +44,9 @@ reservation-system-case-study/
 │   │   │   │   ├── validation.ts
 │   │   │   │   ├── state.ts
 │   │   │   │   └── reservation.ts
-│   │   │   │
 │   │   │   └── server/
 │   │   │       └── db/
 │   │   │           └── mongo.ts
-│   │   │
 │   │   └── routes/
 │   │       ├── +page.svelte
 │   │       ├── reservations/
@@ -65,18 +60,12 @@ reservation-system-case-study/
 │   │           │   └── +server.ts
 │   │           └── seed/
 │   │               └── +server.ts
-│   │
-│   ├── .env.example
-│   ├── package.json
-│   └── vite.config.ts
-│
 ├── database/
 │   ├── mongodb-model.md
 │   └── sample-data.json
-│
 ├── docs/
-│   └── application-architecture.md
-│
+│   ├── application-architecture.md
+│   └── conference-article-sveltekit-mongodb.docx
 └── README.md
 ```
 
@@ -93,24 +82,18 @@ app/src/routes/+page.svelte
 app/src/routes/reservations/+page.svelte
 ```
 
-The homepage introduces the project and provides access to the reservation page.
+The reservation page follows a multi-step booking process:
 
-The reservation page allows users to:
-
-- select a user
-- select a resource
-- select an available time slot
-- create a reservation
-- view available resources
-- view existing reservations
+1. select a user
+2. select a resource
+3. choose one predefined available slot
+4. confirm the reservation
 
 ---
 
 ## 5. API Layer
 
 The backend functionality is implemented using SvelteKit server routes.
-
-The API endpoints are:
 
 | Endpoint | Method | Description |
 |---|---|---|
@@ -120,13 +103,7 @@ The API endpoints are:
 | `/api/reservations` | POST | Creates a new reservation |
 | `/api/seed` | POST | Inserts sample data into MongoDB |
 
-The API routes are implemented in:
-
-```txt
-app/src/routes/api/
-```
-
-This means that the project does not use a separate Express backend. Instead, SvelteKit provides both frontend pages and backend API endpoints in the same application.
+The project does not use a separate Express backend. SvelteKit provides both frontend pages and backend API endpoints.
 
 ---
 
@@ -138,12 +115,6 @@ The MongoDB connection is implemented in:
 app/src/lib/server/db/mongo.ts
 ```
 
-This file reads environment variables from:
-
-```txt
-app/.env
-```
-
 The required variables are:
 
 ```env
@@ -151,27 +122,13 @@ MONGODB_URI=mongodb://127.0.0.1:27017
 MONGODB_DB=reservation_system
 ```
 
-The public example file is:
-
-```txt
-app/.env.example
-```
-
-The real `.env` file is not uploaded to GitHub because it may contain private configuration values.
+The real `.env` file is not uploaded to GitHub.
 
 ---
 
 ## 7. Domain Logic Layer
 
-The domain logic is separated from the user interface and the database layer.
-
-It is stored in:
-
-```txt
-app/src/lib/domain/
-```
-
-The domain files are:
+The domain logic is separated from the user interface and database layer.
 
 | File | Purpose |
 |---|---|
@@ -181,35 +138,59 @@ The domain files are:
 | `state.ts` | Defines StateFn for state transformations |
 | `reservation.ts` | Implements the createReservation function |
 
-This separation makes the project easier to understand, easier to test and easier to explain in the article.
+---
+
+## 8. Resource Types
+
+The application supports multiple resource types:
+
+```txt
+room
+laboratory
+equipment
+tour
+other
+```
+
+Current sample resources include:
+
+- Conference Room A
+- Conference Room B
+- Computer Science Laboratory
+- Projector Kit
+- Bicycle
+- Christmas Tree
+- PlayStation
+- DVD
+- Guided Building Tour
+
+The guided building tour demonstrates that the same reservation system can manage scheduled services, not only physical objects.
 
 ---
 
-## 8. Reservation Creation Flow
+## 9. Reservation Creation Flow
 
 The reservation creation process works as follows:
 
 1. The user opens the `/reservations` page.
 2. The page loads users, resources and reservations from the API.
-3. The user selects a user, a resource and a time slot.
-4. The page sends a POST request to `/api/reservations`.
-5. The API loads the current system state from MongoDB.
-6. The `createReservation` function validates the request.
-7. If the request is invalid, the API returns validation errors.
-8. If the request is valid, a new reservation is created.
-9. The reservation is inserted into the `reservations` collection.
-10. The selected time slot is marked as unavailable inside the related resource document.
-11. The page reloads the updated data.
+3. The user selects a user.
+4. The user selects a resource.
+5. The user chooses one of the predefined available time slots.
+6. The page sends a POST request to `/api/reservations`.
+7. The API loads the current system state from MongoDB.
+8. The `createReservation` function validates the request.
+9. If the request is invalid, the API returns validation errors.
+10. If the request is valid, a new reservation is created.
+11. The reservation is inserted into the `reservations` collection.
+12. The selected embedded time slot is marked as unavailable inside the related resource document.
+13. The page reloads the updated data.
 
 ---
 
-## 9. Relationship Between SvelteKit and MongoDB
+## 10. Relationship Between SvelteKit and MongoDB
 
-SvelteKit handles the application logic and the HTTP API.
-
-MongoDB stores the persistent data.
-
-The connection between them is made through server-side API routes:
+SvelteKit handles the application logic and HTTP API. MongoDB stores persistent data.
 
 ```txt
 Svelte page
@@ -228,12 +209,12 @@ POST /api/reservations
    ↓
 createReservation()
    ↓
-MongoDB: reservations + resources
+MongoDB: reservations + resources.timeSlots[]
 ```
 
 ---
 
-## 10. Hierarchical Data Representation
+## 11. Hierarchical Data Representation
 
 The most important hierarchical structure is the `Resource` document.
 
@@ -241,13 +222,14 @@ Each resource contains an embedded array of `timeSlots`:
 
 ```json
 {
-  "id": "resource_1",
-  "name": "Computer Science Laboratory",
+  "id": "resource_9",
+  "name": "Guided Building Tour",
+  "type": "tour",
   "timeSlots": [
     {
-      "id": "slot_1",
-      "start": "2026-05-10T09:00:00.000Z",
-      "end": "2026-05-10T10:00:00.000Z",
+      "id": "slot_28",
+      "start": "2026-06-01T09:00:00.000Z",
+      "end": "2026-06-01T10:00:00.000Z",
       "isAvailable": true
     }
   ]
@@ -258,109 +240,22 @@ This structure is naturally represented in MongoDB because documents can contain
 
 ---
 
-## 11. Why SvelteKit Is Suitable for This Project
+## 12. Why Predefined Time Slots Are Used
 
-SvelteKit is suitable for this project because it supports:
+The application uses predefined available intervals instead of allowing users to enter arbitrary `StartDate` and `EndDate` values.
 
-- frontend pages
-- server-side API routes
-- TypeScript integration
-- simple project structure
-- communication with MongoDB from server-side code
-- clear separation between UI, API and domain logic
+This decision supports two objectives:
 
-This makes it possible to build the entire reservation system inside one coherent application.
+1. it follows common online booking behavior, where users select from available offers or intervals;
+2. it makes the hierarchical MongoDB model visible through embedded `timeSlots` arrays.
 
 ---
 
-## 12. Why MongoDB Is Suitable for This Project
-
-MongoDB is suitable because the reservation system contains data that can be represented as documents.
-
-For example, a resource and its time slots form a natural hierarchy.
-
-Instead of storing time slots in a separate relational table, MongoDB allows them to be embedded inside the resource document.
-
-This approach is useful for this case study because the project focuses on hierarchical and non-relational data structures.
-
----
-
-## 13. Frontend and Backend Integration
-
-The project uses SvelteKit as a full-stack framework.
-
-The frontend is represented by Svelte pages:
-
-```txt
-app/src/routes/+page.svelte
-app/src/routes/reservations/+page.svelte
-```
-
-The backend is represented by SvelteKit API routes:
-
-```txt
-app/src/routes/api/users/+server.ts
-app/src/routes/api/resources/+server.ts
-app/src/routes/api/reservations/+server.ts
-app/src/routes/api/seed/+server.ts
-```
-
-The frontend communicates with the backend using `fetch()`:
-
-```txt
-fetch('/api/users')
-fetch('/api/resources')
-fetch('/api/reservations')
-```
-
-The backend communicates with MongoDB using the official MongoDB driver.
-
----
-
-## 14. Environment Configuration
-
-The application uses environment variables to configure the MongoDB connection.
-
-The real environment file is:
-
-```txt
-app/.env
-```
-
-Example:
-
-```env
-MONGODB_URI=mongodb://127.0.0.1:27017
-MONGODB_DB=reservation_system
-```
-
-The example file uploaded to GitHub is:
-
-```txt
-app/.env.example
-```
-
-The `.env` file is ignored by Git because it may contain private configuration values.
-
----
-
-## 15. Running the Application
-
-To run the application locally, the user must first enter the `app` folder:
+## 13. Running the Application
 
 ```bash
 cd app
-```
-
-Then install dependencies:
-
-```bash
 npm install
-```
-
-Then start the development server:
-
-```bash
 npm run dev
 ```
 
@@ -378,24 +273,20 @@ http://localhost:5173/reservations
 
 ---
 
-## 16. Seeding the Database
-
-The database can be populated with sample data by calling the seed endpoint:
+## 14. Seeding the Database
 
 ```powershell
 Invoke-RestMethod -Method POST http://localhost:5173/api/seed
 ```
 
-This inserts sample users and resources into MongoDB.
-
-After seeding the database, the application can display users, resources and available time slots.
+This inserts sample users, resources, predefined time slots and an empty reservations collection.
 
 ---
 
-## 17. Conclusion
+## 15. Conclusion
 
 The application combines SvelteKit and MongoDB in a full-stack TypeScript project.
 
-SvelteKit provides the user interface and API endpoints, while MongoDB stores users, resources, time slots and reservations.
+SvelteKit provides the user interface and API endpoints, while MongoDB stores users, resources, embedded predefined time slots and reservations.
 
 The project demonstrates how hierarchical MongoDB documents can be used in a practical reservation management system.

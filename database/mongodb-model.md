@@ -4,16 +4,9 @@
 
 This project uses MongoDB as a non-relational, document-oriented database for a reservation management system.
 
-The system manages:
+The system manages users, resources, predefined available time slots and reservations. The main goal of the database model is to demonstrate how hierarchical and non-relational data structures can be represented in MongoDB.
 
-- users
-- resources
-- time slots
-- reservations
-
-The main goal of the database model is to demonstrate how hierarchical and non-relational data structures can be represented in MongoDB.
-
-Unlike a relational database, where users, resources, time slots and reservations would normally be stored in separate normalized tables connected through foreign keys, MongoDB allows related data to be stored in flexible JSON-like documents.
+The current version follows the professor's recommendation: users do not enter arbitrary `StartDate` and `EndDate` values. Instead, they choose one of several predefined available intervals. This is similar to online booking systems, where users select from available offers or time intervals.
 
 ---
 
@@ -52,59 +45,70 @@ The `users` collection stores information about the people who can create reserv
 }
 ```
 
-### Fields
+### Supported roles
 
-| Field | Type | Description |
-|---|---|---|
-| id | string | Application-level user identifier |
-| name | string | Full name of the user |
-| email | string | Email address |
-| role | string | User role: student, teacher, admin or guest |
+```txt
+student
+teacher
+admin
+guest
+```
 
 ---
 
 ## 5. Resources Collection
 
-The `resources` collection stores reservable resources such as rooms, laboratories or equipment.
+The `resources` collection stores all reservable resources and services. Each resource document contains an embedded `timeSlots` array.
 
-This collection demonstrates a hierarchical MongoDB structure because each resource document contains an embedded array of time slots.
+Supported resource types:
+
+```txt
+room
+laboratory
+equipment
+tour
+other
+```
+
+Current sample resources:
+
+| Resource | Type | Description |
+|---|---|---|
+| Conference Room A | room | Reservable room |
+| Conference Room B | room | Reservable room |
+| Computer Science Laboratory | laboratory | Academic laboratory |
+| Projector Kit | equipment | Presentation equipment |
+| Bicycle | equipment | Campus equipment |
+| Christmas Tree | equipment | Event object |
+| PlayStation | equipment | Recreation equipment |
+| DVD | equipment | Media item |
+| Guided Building Tour | tour | Scheduled guided service |
 
 ### Example document
 
 ```json
 {
-  "id": "resource_1",
-  "name": "Computer Science Laboratory",
-  "type": "laboratory",
-  "location": "Building A, Room 101",
-  "capacity": 30,
+  "id": "resource_9",
+  "name": "Guided Building Tour",
+  "type": "tour",
+  "location": "Main Historical Building",
+  "capacity": 12,
   "timeSlots": [
     {
-      "id": "slot_1",
-      "start": "2026-05-10T09:00:00.000Z",
-      "end": "2026-05-10T10:00:00.000Z",
+      "id": "slot_28",
+      "start": "2026-06-01T09:00:00.000Z",
+      "end": "2026-06-01T10:00:00.000Z",
       "isAvailable": true
     },
     {
-      "id": "slot_2",
-      "start": "2026-05-10T10:00:00.000Z",
-      "end": "2026-05-10T11:00:00.000Z",
+      "id": "slot_29",
+      "start": "2026-06-01T11:00:00.000Z",
+      "end": "2026-06-01T12:00:00.000Z",
       "isAvailable": true
     }
   ]
 }
 ```
-
-### Fields
-
-| Field | Type | Description |
-|---|---|---|
-| id | string | Application-level resource identifier |
-| name | string | Name of the resource |
-| type | string | Resource type: room, laboratory, equipment or other |
-| location | string | Physical location |
-| capacity | number | Maximum capacity |
-| timeSlots | array | Embedded list of available time intervals |
 
 ---
 
@@ -116,16 +120,24 @@ A `TimeSlot` is not stored as a separate collection. Instead, it is embedded ins
 
 ```json
 {
-  "id": "slot_1",
-  "start": "2026-05-10T09:00:00.000Z",
-  "end": "2026-05-10T10:00:00.000Z",
+  "id": "slot_28",
+  "start": "2026-06-01T09:00:00.000Z",
+  "end": "2026-06-01T10:00:00.000Z",
   "isAvailable": true
 }
 ```
 
-This design is useful because time slots are strongly connected to a specific resource. When the application loads a resource, it also receives the related time slots in the same document.
+This design is useful because time slots are strongly connected to a specific resource. When the application loads a resource, it also receives all related available intervals in the same document.
 
-This is an example of a hierarchical data structure in MongoDB.
+This is the main hierarchical structure of the project:
+
+```txt
+Resource
+└── timeSlots[]
+    ├── TimeSlot
+    ├── TimeSlot
+    └── TimeSlot
+```
 
 ---
 
@@ -137,7 +149,7 @@ A reservation references:
 
 - a user through `userId`
 - a resource through `resourceId`
-- a time slot through `timeSlotId`
+- an embedded time slot through `timeSlotId`
 
 ### Example document
 
@@ -145,67 +157,18 @@ A reservation references:
 {
   "id": "res_123456",
   "userId": "user_1",
-  "resourceId": "resource_1",
-  "timeSlotId": "slot_1",
-  "start": "2026-05-10T09:00:00.000Z",
-  "end": "2026-05-10T10:00:00.000Z",
+  "resourceId": "resource_9",
+  "timeSlotId": "slot_28",
+  "start": "2026-06-01T09:00:00.000Z",
+  "end": "2026-06-01T10:00:00.000Z",
   "status": "confirmed",
   "createdAt": "2026-05-05T20:00:00.000Z"
 }
 ```
 
-### Fields
-
-| Field | Type | Description |
-|---|---|---|
-| id | string | Application-level reservation identifier |
-| userId | string | Reference to the user |
-| resourceId | string | Reference to the resource |
-| timeSlotId | string | Reference to the selected time slot |
-| start | string | Reservation start date and time |
-| end | string | Reservation end date and time |
-| status | string | Reservation status |
-| createdAt | string | Date and time when the reservation was created |
-
 ---
 
-## 8. Hierarchical and Non-Relational Design
-
-The most important non-relational structure in this project is the `resources` collection.
-
-Each resource contains its own embedded `timeSlots` array:
-
-```json
-{
-  "id": "resource_1",
-  "name": "Computer Science Laboratory",
-  "timeSlots": [
-    {
-      "id": "slot_1",
-      "start": "2026-05-10T09:00:00.000Z",
-      "end": "2026-05-10T10:00:00.000Z",
-      "isAvailable": true
-    }
-  ]
-}
-```
-
-This means that the application does not need a separate `time_slots` table or collection for the basic use case.
-
-The document itself contains a hierarchy:
-
-```txt
-Resource
-└── TimeSlot[]
-    ├── TimeSlot
-    └── TimeSlot
-```
-
-This structure is suitable for MongoDB because time slots belong directly to resources.
-
----
-
-## 9. Embedded Documents vs References
+## 8. Embedded Documents vs References
 
 The project uses both embedded documents and references.
 
@@ -214,7 +177,7 @@ The project uses both embedded documents and references.
 Time slots are embedded inside resources:
 
 ```txt
-Resource → timeSlots[]
+Resource -> timeSlots[]
 ```
 
 This is useful because a time slot has meaning only in relation to a specific resource.
@@ -224,16 +187,16 @@ This is useful because a time slot has meaning only in relation to a specific re
 Reservations use references:
 
 ```txt
-Reservation → userId
-Reservation → resourceId
-Reservation → timeSlotId
+Reservation -> userId
+Reservation -> resourceId
+Reservation -> timeSlotId
 ```
 
 This is useful because users and reservations are independent entities and may need to be queried separately.
 
 ---
 
-## 10. Reservation Creation Flow
+## 9. Reservation Creation Flow
 
 When a reservation is created, the application performs the following steps:
 
@@ -242,42 +205,42 @@ When a reservation is created, the application performs the following steps:
 3. Validates the reservation request.
 4. Checks if the user exists.
 5. Checks if the resource exists.
-6. Checks if the selected time slot exists.
+6. Checks if the selected embedded time slot exists.
 7. Checks if the selected time slot is available.
 8. Checks if another confirmed reservation already exists for the same resource and time slot.
 9. Creates a reservation document.
 10. Inserts the reservation into the `reservations` collection.
-11. Updates the selected resource by marking the selected time slot as unavailable.
+11. Updates the selected resource by marking the selected embedded time slot as unavailable.
 
 ---
 
-## 11. Advantages of the MongoDB Model
+## 10. Advantages of This MongoDB Model
 
-The MongoDB model used in this project has several advantages:
+This model has several advantages:
 
-- flexible document structure
-- natural representation of hierarchical data
-- simple storage of resources with embedded time slots
-- fewer joins compared to a relational design
-- easier mapping between TypeScript objects and MongoDB documents
-- good fit for JSON-like application data
+- clear hierarchical representation through `Resource -> timeSlots[]`
+- natural modeling of available intervals
+- suitable for online booking-like workflows
+- supports both physical resources and scheduled services
+- allows the application to load a resource and its available intervals in one document
+- combines embedded documents and references in a practical way
 
 ---
 
-## 12. Limitations
+## 11. Limitations
 
 The model also has limitations:
 
 - embedded arrays may become large if a resource has many time slots
 - updating nested fields requires careful update operations
 - application-level validation is required to prevent invalid reservations
-- references between collections are not automatically enforced by MongoDB like foreign keys in relational databases
-- consistency must be handled carefully when reservations and resource availability are updated together
+- references between collections are not automatically enforced like foreign keys in relational databases
+- the current version uses predefined intervals rather than fully dynamic calendar scheduling
 
 ---
 
-## 13. Conclusion
+## 12. Conclusion
 
 This MongoDB model demonstrates how a reservation management system can be implemented using hierarchical and non-relational data structures.
 
-The `resources` collection stores embedded time slots, while the `reservations` collection references users and resources. This combination of embedded documents and references provides a practical example of document-oriented database design.
+The `resources` collection stores embedded predefined time slots, while the `reservations` collection references users, resources and selected time slots. This combination provides a clear practical example of document-oriented database design.
