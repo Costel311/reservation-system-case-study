@@ -1,26 +1,49 @@
-# Hierarchical and Non-Relational Data Structures in MongoDB: A Reservation Management System Case Study
+# Hierarchical and Non-Relational Data Structures in MongoDB: A SvelteKit Reservation Management System Case Study
 
 ## 1. Project Overview
 
 This project is a full-stack reservation management system developed with **SvelteKit**, **TypeScript** and **MongoDB**.
 
-The project was created as a case study for the topic:
+The project was created as a practical case study for the topic:
 
 **Hierarchical and Non-Relational Data Structures in MongoDB**
 
-The application demonstrates how a reservation system can be modeled using MongoDB documents, embedded arrays and references between collections.
+The application demonstrates how different types of reservable resources can be modeled using MongoDB documents, embedded arrays and references between collections.
 
 The system allows users to:
 
+- view available users
 - view available resources
-- view available time slots
+- choose predefined available time slots
 - create reservations
 - store reservations in MongoDB
 - update resource availability after a reservation is created
+- demonstrate hierarchical MongoDB document modeling through embedded `timeSlots`
 
 ---
 
-## 2. Technologies Used
+## 2. Academic Purpose
+
+The project supports an academic article about hierarchical and non-relational data structures in MongoDB.
+
+The practical case study is a reservation system where resources contain embedded time slots.
+
+The system can manage different types of resources, such as:
+
+- conference rooms
+- laboratories
+- equipment
+- bicycles
+- holiday objects
+- entertainment devices
+- media items
+- guided building tours
+
+This makes the project more flexible and demonstrates that the same MongoDB document model can support both physical resources and scheduled services.
+
+---
+
+## 3. Technologies Used
 
 | Technology | Purpose |
 |---|---|
@@ -34,7 +57,7 @@ The system allows users to:
 
 ---
 
-## 3. Repository Structure
+## 4. Repository Structure
 
 ```txt
 reservation-system-case-study/
@@ -75,7 +98,8 @@ reservation-system-case-study/
 │   └── sample-data.json
 │
 ├── docs/
-│   └── application-architecture.md
+│   ├── application-architecture.md
+│   └── conference-article-sveltekit-mongodb.docx
 │
 ├── README.md
 └── .gitignore
@@ -83,7 +107,7 @@ reservation-system-case-study/
 
 ---
 
-## 4. Main Features
+## 5. Main Features
 
 The application includes the following features:
 
@@ -92,14 +116,16 @@ The application includes the following features:
 - MongoDB database connection
 - TypeScript domain model
 - reservation validation
-- resource availability update
+- predefined available time slots
+- resource availability update after reservation
 - seed endpoint for sample data
 - MongoDB documentation
 - application architecture documentation
+- conference article draft
 
 ---
 
-## 5. MongoDB Data Model
+## 6. MongoDB Data Model
 
 The MongoDB database is named:
 
@@ -115,9 +141,11 @@ resources
 reservations
 ```
 
-### Users
+---
 
-The `users` collection stores the users who can create reservations.
+## 7. Users Collection
+
+The `users` collection stores the people who can create reservations.
 
 Example:
 
@@ -130,33 +158,70 @@ Example:
 }
 ```
 
-### Resources
+Supported user roles:
 
-The `resources` collection stores reservable resources such as rooms, laboratories or equipment.
+```txt
+student
+teacher
+admin
+guest
+```
 
-This collection demonstrates a hierarchical MongoDB structure because each resource document contains embedded time slots.
+---
+
+## 8. Resources Collection
+
+The `resources` collection stores reservable items and services.
+
+Each resource contains an embedded array of predefined available time slots.
 
 Example:
 
 ```json
 {
   "id": "resource_1",
-  "name": "Computer Science Laboratory",
-  "type": "laboratory",
-  "location": "Building A, Room 101",
-  "capacity": 30,
+  "name": "Conference Room A",
+  "type": "room",
+  "location": "Building A, Floor 1",
+  "capacity": 20,
   "timeSlots": [
     {
       "id": "slot_1",
-      "start": "2026-05-10T09:00:00.000Z",
-      "end": "2026-05-10T10:00:00.000Z",
+      "start": "2026-05-20T09:00:00.000Z",
+      "end": "2026-05-20T10:30:00.000Z",
       "isAvailable": true
     }
   ]
 }
 ```
 
-### Reservations
+Supported resource types:
+
+```txt
+room
+laboratory
+equipment
+tour
+other
+```
+
+Current sample resources:
+
+| Resource | Type | Description |
+|---|---|---|
+| Conference Room A | room | Reservable room |
+| Conference Room B | room | Reservable room |
+| Computer Science Laboratory | laboratory | Academic laboratory |
+| Projector Kit | equipment | Presentation equipment |
+| Bicycle | equipment | Campus equipment |
+| Christmas Tree | equipment | Event object |
+| PlayStation | equipment | Recreation equipment |
+| DVD | equipment | Media item |
+| Guided Building Tour | tour | Scheduled guided service |
+
+---
+
+## 9. Reservations Collection
 
 The `reservations` collection stores confirmed reservations.
 
@@ -168,46 +233,59 @@ Example:
   "userId": "user_1",
   "resourceId": "resource_1",
   "timeSlotId": "slot_1",
-  "start": "2026-05-10T09:00:00.000Z",
-  "end": "2026-05-10T10:00:00.000Z",
+  "start": "2026-05-20T09:00:00.000Z",
+  "end": "2026-05-20T10:30:00.000Z",
   "status": "confirmed",
   "createdAt": "2026-05-05T20:00:00.000Z"
 }
 ```
 
-More details are available in:
+A reservation references:
 
-```txt
-database/mongodb-model.md
-```
+- a user through `userId`
+- a resource through `resourceId`
+- an embedded time slot through `timeSlotId`
 
 ---
 
-## 6. Hierarchical and Non-Relational Structure
+## 10. Hierarchical and Non-Relational Structure
 
-The main hierarchical structure is represented by the `resources` collection.
+The most important hierarchical structure in this project is represented by the `resources` collection.
 
 Each resource contains an embedded array of time slots:
 
 ```txt
 Resource
-└── TimeSlot[]
+└── timeSlots[]
+    ├── TimeSlot
     ├── TimeSlot
     └── TimeSlot
 ```
 
-This is suitable for MongoDB because a resource and its time slots naturally form a document hierarchy.
+This structure demonstrates MongoDB hierarchical document modeling.
 
 The project uses both:
 
 - embedded documents: `Resource -> timeSlots[]`
 - references: `Reservation -> userId`, `resourceId`, `timeSlotId`
 
-This combination demonstrates a practical non-relational data model.
+This combination provides a practical example of non-relational data modeling.
 
 ---
 
-## 7. SvelteKit Application
+## 11. Why Predefined Time Slots Are Used
+
+The system uses predefined available time slots instead of allowing completely free date and time selection.
+
+This design was chosen because it is similar to many online booking systems, where users select from a list of available intervals.
+
+It also supports the academic purpose of the project because the time slots are stored as embedded documents inside MongoDB resource documents.
+
+This makes the hierarchical MongoDB structure clear and easy to explain.
+
+---
+
+## 12. SvelteKit Application
 
 The SvelteKit application is stored in the `app` folder.
 
@@ -241,7 +319,7 @@ app/src/lib/domain/
 
 ---
 
-## 8. API Endpoints
+## 13. API Endpoints
 
 | Endpoint | Method | Description |
 |---|---|---|
@@ -253,7 +331,7 @@ app/src/lib/domain/
 
 ---
 
-## 9. Domain Logic
+## 14. Domain Logic
 
 The project separates domain logic from the user interface and database access.
 
@@ -283,7 +361,7 @@ It validates:
 
 ---
 
-## 10. Environment Configuration
+## 15. Environment Configuration
 
 The real environment file must be created locally:
 
@@ -308,7 +386,7 @@ The real `.env` file is ignored by Git.
 
 ---
 
-## 11. Installation and Running the Project
+## 16. Installation and Running the Project
 
 ### Step 1: Clone the repository
 
@@ -368,7 +446,7 @@ http://localhost:5173/reservations
 
 ---
 
-## 12. Seeding the Database
+## 17. Seeding the Database
 
 After starting the development server, open a second terminal and run:
 
@@ -376,7 +454,16 @@ After starting the development server, open a second terminal and run:
 Invoke-RestMethod -Method POST http://localhost:5173/api/seed
 ```
 
-This inserts sample users and resources into MongoDB.
+This inserts sample users, resources and predefined available time slots into MongoDB.
+
+The seed includes:
+
+- users
+- rooms
+- laboratory
+- equipment
+- guided tour resource
+- embedded time slots for each resource
 
 After seeding, open:
 
@@ -386,7 +473,7 @@ http://localhost:5173/reservations
 
 ---
 
-## 13. Testing the API
+## 18. Testing the API
 
 The following URLs can be used for testing:
 
@@ -400,29 +487,32 @@ To create a reservation, use the `/reservations` page from the browser.
 
 ---
 
-## 14. Reservation Creation Flow
+## 19. Reservation Creation Flow
 
 The reservation creation process works as follows:
 
 1. The user opens the `/reservations` page.
 2. The page loads users, resources and reservations from the API.
-3. The user selects a user, a resource and a time slot.
-4. The page sends a POST request to `/api/reservations`.
-5. The API loads the current state from MongoDB.
-6. The `createReservation` function validates the request.
-7. If the request is valid, a new reservation is created.
-8. The reservation is inserted into the `reservations` collection.
-9. The selected time slot is marked as unavailable in the related resource document.
-10. The page reloads the updated data.
+3. The user selects a user.
+4. The user selects a resource.
+5. The user selects one available predefined time slot.
+6. The page sends a POST request to `/api/reservations`.
+7. The API loads the current state from MongoDB.
+8. The `createReservation` function validates the request.
+9. If the request is valid, a new reservation is created.
+10. The reservation is inserted into the `reservations` collection.
+11. The selected time slot is marked as unavailable in the related resource document.
+12. The page reloads the updated data.
 
 ---
 
-## 15. Documentation
+## 20. Documentation
 
 Additional documentation is available in:
 
 ```txt
 database/mongodb-model.md
+database/sample-data.json
 docs/application-architecture.md
 ```
 
@@ -444,24 +534,22 @@ The application architecture documentation explains:
 
 ---
 
-## 16. Academic Purpose
+## 21. Conference Article
 
-This project was developed for an academic article about:
+The repository also includes a conference article draft in the `docs` folder:
 
 ```txt
-Hierarchical and Non-Relational Data Structures in MongoDB
+docs/conference-article-sveltekit-mongodb.docx
 ```
 
-The practical case study is a reservation management system implemented with SvelteKit and MongoDB.
-
-The project demonstrates how MongoDB can represent hierarchical data using embedded documents and arrays, while SvelteKit provides the frontend and backend API routes in a single full-stack application.
+The article presents the project as a case study for hierarchical and non-relational data structures in MongoDB.
 
 ---
 
-## 17. Conclusion
+## 22. Conclusion
 
 This reservation management system demonstrates how SvelteKit, TypeScript and MongoDB can be combined to build a full-stack application based on hierarchical and non-relational data structures.
 
-MongoDB is used to store users, resources, time slots and reservations, while SvelteKit provides the user interface and server-side API endpoints.
+MongoDB is used to store users, resources, embedded time slots and reservations, while SvelteKit provides the user interface and server-side API endpoints.
 
-The project is suitable as a practical case study for document-oriented database modeling.
+The project is suitable as a practical academic case study for document-oriented database modeling.
