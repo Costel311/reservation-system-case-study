@@ -12,10 +12,8 @@ export interface User {
 }
 
 export interface TimeSlot {
-	id: string;
 	start: string;
 	end: string;
-	isAvailable: boolean;
 }
 
 export interface Resource {
@@ -24,22 +22,14 @@ export interface Resource {
 	type: ResourceType;
 	location: string;
 	capacity: number;
-	timeSlots: TimeSlot[];
+	availabilityWindows: TimeSlot[];
 }
 
 export interface Reservation {
 	id: string;
 	userId: string;
 	resourceId: string;
-	timeSlotId: string;
-	start: string;
-	end: string;
+	slot: TimeSlot;
 	status: ReservationStatus;
 	createdAt: string;
-}
-
-export interface SystemState {
-	users: User[];
-	resources: Resource[];
-	reservations: Reservation[];
 }

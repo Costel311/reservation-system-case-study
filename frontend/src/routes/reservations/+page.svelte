@@ -2,13 +2,16 @@
 	import { onMount } from 'svelte';
 	import type { Reservation, Resource, TimeSlot, User } from '$lib/domain/types';
 
+	const API_BASE_URL = 'http://localhost:3000';
+
 	let users = $state<User[]>([]);
 	let resources = $state<Resource[]>([]);
 	let reservations = $state<Reservation[]>([]);
 
 	let selectedUserId = $state('');
 	let selectedResourceId = $state('');
-	let selectedTimeSlotId = $state('');
+	let start = $state('');
+	let end = $state('');
 
 	let message = $state('');
 	let loading = $state(false);
@@ -17,24 +20,8 @@
 		return resources.find((resource) => resource.id === selectedResourceId);
 	}
 
-	function getAvailableTimeSlots(): TimeSlot[] {
-		const resource = getSelectedResource();
-
-		if (!resource) {
-			return [];
-		}
-
-		return resource.timeSlots.filter((slot) => slot.isAvailable);
-	}
-
 	function selectResource(resourceId: string) {
 		selectedResourceId = resourceId;
-		selectedTimeSlotId = '';
-		message = '';
-	}
-
-	function selectTimeSlot(slotId: string) {
-		selectedTimeSlotId = slotId;
 		message = '';
 	}
 
@@ -54,30 +41,15 @@
 		});
 	}
 
-	function getSlotDuration(slot: TimeSlot): string {
-		const start = new Date(slot.start).getTime();
-		const end = new Date(slot.end).getTime();
-		const minutes = Math.round((end - start) / 60000);
-
-		if (minutes < 60) {
-			return `${minutes} min`;
-		}
-
-		const hours = Math.floor(minutes / 60);
-		const remainingMinutes = minutes % 60;
-
-		if (remainingMinutes === 0) {
-			return `${hours} h`;
-		}
-
-		return `${hours} h ${remainingMinutes} min`;
+	function formatWindow(window: TimeSlot): string {
+		return `${formatDate(window.start)}, ${formatTime(window.start)} - ${formatTime(window.end)}`;
 	}
 
 	async function loadData() {
 		const [usersResponse, resourcesResponse, reservationsResponse] = await Promise.all([
-			fetch('/api/users'),
-			fetch('/api/resources'),
-			fetch('/api/reservations')
+			fetch(`${API_BASE_URL}/users`),
+			fetch(`${API_BASE_URL}/resources`),
+			fetch(`${API_BASE_URL}/reservations`)
 		]);
 
 		const usersData = await usersResponse.json();
@@ -92,14 +64,14 @@
 	async function createNewReservation() {
 		message = '';
 
-		if (!selectedUserId || !selectedResourceId || !selectedTimeSlotId) {
-			message = 'Please select a user, a resource and an available time slot.';
+		if (!selectedUserId || !selectedResourceId || !start || !end) {
+			message = 'Please select a user, a resource, a start date and an end date.';
 			return;
 		}
 
 		loading = true;
 
-		const response = await fetch('/api/reservations', {
+		const response = await fetch(`${API_BASE_URL}/reservations`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json'
@@ -107,21 +79,25 @@
 			body: JSON.stringify({
 				userId: selectedUserId,
 				resourceId: selectedResourceId,
-				timeSlotId: selectedTimeSlotId
+				slot: {
+					start: new Date(start).toISOString(),
+					end: new Date(end).toISOString()
+				}
 			})
 		});
 
 		const data = await response.json();
 
 		if (!response.ok) {
-			message = data.errors?.join(' ') ?? 'Reservation could not be created.';
+			message = data.errors?.join(' ') ?? data.error ?? 'Reservation could not be created.';
 			loading = false;
 			return;
 		}
 
-		message = 'Reservation created successfully. The selected time slot is now unavailable.';
+		message = 'Reservation created successfully.';
 
-		selectedTimeSlotId = '';
+		start = '';
+		end = '';
 
 		await loadData();
 
@@ -139,11 +115,11 @@
 
 <main class="page">
 	<section class="hero">
-		<p class="eyebrow">SvelteKit + MongoDB Case Study</p>
+		<p class="eyebrow">SvelteKit Frontend + Express Backend + MongoDB</p>
 		<h1>Reservation Management System</h1>
 		<p>
-			Select a user, choose a resource and book one of the available predefined time slots.
-			The time slots are stored as embedded documents inside MongoDB resource documents.
+			This page is the SvelteKit frontend. It sends reservation requests to a separate Express
+			backend running on <strong>http://localhost:3000</strong>.
 		</p>
 	</section>
 
@@ -172,11 +148,11 @@
 				<p class="eyebrow">Step 2</p>
 				<h2>Select Resource</h2>
 			</div>
-			<p class="hint">Choose a room, laboratory or equipment item.</p>
+			<p class="hint">Choose a room, laboratory, equipment item or guided tour.</p>
 		</div>
 
 		{#if resources.length === 0}
-			<p>No resources found. Run the database seed endpoint first.</p>
+			<p>No resources found. Start the backend and run the seed endpoint first.</p>
 		{:else}
 			<div class="resource-grid">
 				{#each resources as resource}
@@ -194,9 +170,7 @@
 						<p><strong>Location:</strong> {resource.location}</p>
 						<p><strong>Capacity:</strong> {resource.capacity}</p>
 
-						<p class="slot-count">
-							{resource.timeSlots.filter((slot) => slot.isAvailable).length} available slots
-						</p>
+						<p class="slot-count">{resource.availabilityWindows.length} availability windows</p>
 					</button>
 				{/each}
 			</div>
@@ -207,29 +181,37 @@
 		<div class="section-header">
 			<div>
 				<p class="eyebrow">Step 3</p>
-				<h2>Select Available Time Slot</h2>
+				<h2>Choose Start and End</h2>
 			</div>
-			<p class="hint">The user chooses from predefined available intervals.</p>
+			<p class="hint">
+				The selected interval must be inside one of the availability windows and must not overlap
+				an existing reservation.
+			</p>
 		</div>
 
 		{#if !selectedResourceId}
 			<p class="empty-state">Please select a resource first.</p>
-		{:else if getAvailableTimeSlots().length === 0}
-			<p class="empty-state">There are no available slots for the selected resource.</p>
 		{:else}
-			<div class="slot-grid">
-				{#each getAvailableTimeSlots() as slot}
-					<button
-						type="button"
-						class:selected={selectedTimeSlotId === slot.id}
-						class="slot-card"
-						onclick={() => selectTimeSlot(slot.id)}
-					>
-						<span class="slot-date">{formatDate(slot.start)}</span>
-						<span class="slot-time">{formatTime(slot.start)} - {formatTime(slot.end)}</span>
-						<span class="slot-duration">{getSlotDuration(slot)}</span>
-					</button>
-				{/each}
+			<div class="availability-box">
+				<h3>Available windows for {getSelectedResource()?.name}</h3>
+
+				<ul>
+					{#each getSelectedResource()?.availabilityWindows ?? [] as window}
+						<li>{formatWindow(window)}</li>
+					{/each}
+				</ul>
+			</div>
+
+			<div class="form-grid">
+				<label class="field">
+					Start
+					<input type="datetime-local" bind:value={start} />
+				</label>
+
+				<label class="field">
+					End
+					<input type="datetime-local" bind:value={end} />
+				</label>
 			</div>
 		{/if}
 	</section>
@@ -239,8 +221,7 @@
 			<p class="eyebrow">Step 4</p>
 			<h2>Confirm Reservation</h2>
 			<p>
-				After confirmation, the reservation is saved in MongoDB and the selected embedded
-				time slot becomes unavailable.
+				The frontend sends userId, resourceId and slot start/end to the separate Express backend.
 			</p>
 		</div>
 
@@ -277,8 +258,8 @@
 								<td>{reservation.id}</td>
 								<td>{reservation.userId}</td>
 								<td>{reservation.resourceId}</td>
-								<td>{formatDate(reservation.start)} {formatTime(reservation.start)}</td>
-								<td>{formatDate(reservation.end)} {formatTime(reservation.end)}</td>
+								<td>{formatDate(reservation.slot.start)} {formatTime(reservation.slot.start)}</td>
+								<td>{formatDate(reservation.slot.end)} {formatTime(reservation.slot.end)}</td>
 								<td>{reservation.status}</td>
 							</tr>
 						{/each}
@@ -315,7 +296,7 @@
 	}
 
 	.hero p {
-		max-width: 820px;
+		max-width: 850px;
 		margin: 0;
 		color: #4b5563;
 		font-size: 17px;
@@ -365,7 +346,8 @@
 		font-weight: 700;
 	}
 
-	select {
+	select,
+	input {
 		padding: 12px;
 		border: 1px solid #d1d5db;
 		border-radius: 12px;
@@ -442,58 +424,26 @@
 		color: #6b7280;
 	}
 
-	.slot-grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-		gap: 14px;
-	}
-
-	.slot-card {
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
+	.availability-box {
+		margin-bottom: 18px;
 		padding: 18px;
-		border: 1px solid #d1d5db;
-		border-radius: 16px;
+		border-radius: 14px;
 		background: #f9fafb;
-		text-align: left;
-		cursor: pointer;
-		transition:
-			border-color 0.2s,
-			transform 0.2s,
-			box-shadow 0.2s;
+		border: 1px solid #e5e7eb;
 	}
 
-	.slot-card:hover {
-		transform: translateY(-2px);
-		box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
+	.availability-box h3 {
+		margin-top: 0;
 	}
 
-	.slot-card.selected {
-		border-color: #16a34a;
-		background: #f0fdf4;
-		box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.12);
+	.availability-box li {
+		margin-bottom: 6px;
 	}
 
-	.slot-date {
-		font-weight: 800;
-		color: #111827;
-	}
-
-	.slot-time {
-		font-size: 18px;
-		font-weight: 800;
-		color: #2563eb;
-	}
-
-	.slot-duration {
-		width: fit-content;
-		padding: 4px 8px;
-		border-radius: 999px;
-		background: #e5e7eb;
-		color: #374151;
-		font-size: 13px;
-		font-weight: 700;
+	.form-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+		gap: 16px;
 	}
 
 	.summary-card {
