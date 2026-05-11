@@ -2,15 +2,29 @@
 
 ## 1. Overview
 
-This project uses MongoDB as a non-relational, document-oriented database for a reservation management system.
+This document describes the MongoDB data model used by the reservation management system.
 
-The system manages users, resources, predefined available time slots and reservations. The main goal of the database model is to demonstrate how hierarchical and non-relational data structures can be represented in MongoDB.
+The project is implemented as a separated full-stack application:
 
-The current version follows the professor's recommendation: users do not enter arbitrary `StartDate` and `EndDate` values. Instead, they choose one of several predefined available intervals. This is similar to online booking systems, where users select from available offers or time intervals.
+```txt
+SvelteKit frontend
+        ↓
+Express backend
+        ↓
+MongoDB database
+```
+
+The frontend allows users to select a user, a resource, a start date and an end date.
+
+The backend receives the reservation request, validates the selected interval and stores the reservation in MongoDB.
+
+The database model demonstrates hierarchical and non-relational structures in MongoDB by embedding availability windows inside resource documents.
 
 ---
 
 ## 2. Database Name
+
+The MongoDB database is named:
 
 ```txt
 reservation_system
@@ -20,7 +34,7 @@ reservation_system
 
 ## 3. Collections
 
-The application uses three main MongoDB collections:
+The application uses three main collections:
 
 ```txt
 users
@@ -32,7 +46,7 @@ reservations
 
 ## 4. Users Collection
 
-The `users` collection stores information about the people who can create reservations.
+The `users` collection stores people who can create reservations.
 
 ### Example document
 
@@ -45,7 +59,16 @@ The `users` collection stores information about the people who can create reserv
 }
 ```
 
-### Supported roles
+### Fields
+
+| Field | Type | Description |
+|---|---|---|
+| id | string | Application-level user identifier |
+| name | string | Full name of the user |
+| email | string | Email address |
+| role | string | User role |
+
+### Supported user roles
 
 ```txt
 student
@@ -58,9 +81,60 @@ guest
 
 ## 5. Resources Collection
 
-The `resources` collection stores all reservable resources and services. Each resource document contains an embedded `timeSlots` array.
+The `resources` collection stores reservable resources and services.
 
-Supported resource types:
+A resource may represent:
+
+- a room;
+- a laboratory;
+- an equipment item;
+- a guided tour;
+- another reservable item or service.
+
+The most important hierarchical structure in the database is found in this collection.
+
+Each resource document contains an embedded array named `availabilityWindows`.
+
+---
+
+## 6. Resource Example
+
+```json
+{
+  "id": "resource_1",
+  "name": "Conference Room A",
+  "type": "room",
+  "location": "Building A, Floor 1",
+  "capacity": 20,
+  "availabilityWindows": [
+    {
+      "start": "2026-05-20T09:00:00.000Z",
+      "end": "2026-05-20T12:30:00.000Z"
+    },
+    {
+      "start": "2026-05-20T14:00:00.000Z",
+      "end": "2026-05-20T17:00:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+## 7. Resource Fields
+
+| Field | Type | Description |
+|---|---|---|
+| id | string | Application-level resource identifier |
+| name | string | Resource name |
+| type | string | Resource type |
+| location | string | Resource location |
+| capacity | number | Maximum capacity |
+| availabilityWindows | array | Embedded list of available intervals |
+
+---
+
+## 8. Supported Resource Types
 
 ```txt
 room
@@ -70,7 +144,9 @@ tour
 other
 ```
 
-Current sample resources:
+---
+
+## 9. Current Sample Resources
 
 | Resource | Type | Description |
 |---|---|---|
@@ -84,72 +160,72 @@ Current sample resources:
 | DVD | equipment | Media item |
 | Guided Building Tour | tour | Scheduled guided service |
 
-### Example document
-
-```json
-{
-  "id": "resource_9",
-  "name": "Guided Building Tour",
-  "type": "tour",
-  "location": "Main Historical Building",
-  "capacity": 12,
-  "timeSlots": [
-    {
-      "id": "slot_28",
-      "start": "2026-06-01T09:00:00.000Z",
-      "end": "2026-06-01T10:00:00.000Z",
-      "isAvailable": true
-    },
-    {
-      "id": "slot_29",
-      "start": "2026-06-01T11:00:00.000Z",
-      "end": "2026-06-01T12:00:00.000Z",
-      "isAvailable": true
-    }
-  ]
-}
-```
+The `Guided Building Tour` resource shows that the same data model can be used not only for physical objects, but also for scheduled services.
 
 ---
 
-## 6. Embedded TimeSlot Structure
+## 10. Embedded Availability Window Structure
 
-A `TimeSlot` is not stored as a separate collection. Instead, it is embedded inside a resource document.
+An availability window is embedded inside a resource document.
 
 ### Example embedded document
 
 ```json
 {
-  "id": "slot_28",
-  "start": "2026-06-01T09:00:00.000Z",
-  "end": "2026-06-01T10:00:00.000Z",
-  "isAvailable": true
+  "start": "2026-05-20T09:00:00.000Z",
+  "end": "2026-05-20T12:30:00.000Z"
 }
 ```
 
-This design is useful because time slots are strongly connected to a specific resource. When the application loads a resource, it also receives all related available intervals in the same document.
+This structure means that MongoDB stores the availability of a resource inside the resource document itself.
 
-This is the main hierarchical structure of the project:
+The hierarchy is:
 
 ```txt
 Resource
-└── timeSlots[]
+└── availabilityWindows[]
     ├── TimeSlot
     ├── TimeSlot
     └── TimeSlot
 ```
 
+This is an example of hierarchical data modeling in MongoDB.
+
 ---
 
-## 7. Reservations Collection
+## 11. Why Availability Windows Are Used
+
+The project uses `availabilityWindows[]` instead of a simple hardcoded time slot selected by ID.
+
+This allows the frontend user to choose a custom start and end interval.
+
+For example, the resource may be available during this window:
+
+```txt
+20 May 2026, 12:00 - 15:30
+```
+
+The user can choose a smaller interval inside that window:
+
+```txt
+20 May 2026, 12:30 - 13:00
+```
+
+The backend validates whether the selected interval is inside one of the resource availability windows.
+
+This design keeps the system flexible while still preserving the hierarchical MongoDB document structure.
+
+---
+
+## 12. Reservations Collection
 
 The `reservations` collection stores confirmed reservations.
 
-A reservation references:
+A reservation contains references to:
 
-- a user through `userId`
-- a resource through `resourceId`
-- an embedded time slot through `timeSlotId`
+- the user;
+- the resource;
+- the selected interval.
 
 ### Example document
 
@@ -157,10 +233,11 @@ A reservation references:
 {
   "id": "res_123456",
   "userId": "user_1",
-  "resourceId": "resource_9",
-  "timeSlotId": "slot_28",
-  "start": "2026-06-01T09:00:00.000Z",
-  "end": "2026-06-01T10:00:00.000Z",
+  "resourceId": "resource_1",
+  "slot": {
+    "start": "2026-05-20T09:30:00.000Z",
+    "end": "2026-05-20T10:00:00.000Z"
+  },
   "status": "confirmed",
   "createdAt": "2026-05-05T20:00:00.000Z"
 }
@@ -168,19 +245,32 @@ A reservation references:
 
 ---
 
-## 8. Embedded Documents vs References
+## 13. Reservation Fields
+
+| Field | Type | Description |
+|---|---|---|
+| id | string | Application-level reservation identifier |
+| userId | string | Reference to the user |
+| resourceId | string | Reference to the resource |
+| slot | object | Selected start and end interval |
+| status | string | Reservation status |
+| createdAt | string | Date and time when the reservation was created |
+
+---
+
+## 14. Embedded Documents vs References
 
 The project uses both embedded documents and references.
 
 ### Embedded documents
 
-Time slots are embedded inside resources:
+Availability windows are embedded inside resources:
 
 ```txt
-Resource -> timeSlots[]
+Resource -> availabilityWindows[]
 ```
 
-This is useful because a time slot has meaning only in relation to a specific resource.
+This is useful because availability windows belong directly to a resource.
 
 ### References
 
@@ -189,58 +279,134 @@ Reservations use references:
 ```txt
 Reservation -> userId
 Reservation -> resourceId
-Reservation -> timeSlotId
 ```
 
-This is useful because users and reservations are independent entities and may need to be queried separately.
+This is useful because users and reservations are independent entities and must be queried separately.
 
 ---
 
-## 9. Reservation Creation Flow
+## 15. Reservation Validation Flow
 
-When a reservation is created, the application performs the following steps:
+When a reservation is created, the backend performs these steps:
 
-1. Loads users, resources and reservations from MongoDB.
-2. Builds an in-memory `SystemState`.
-3. Validates the reservation request.
+1. Receives `userId`, `resourceId` and `slot` from the frontend.
+2. Loads users, resources and reservations from MongoDB.
+3. Builds an in-memory `SystemState`.
 4. Checks if the user exists.
 5. Checks if the resource exists.
-6. Checks if the selected embedded time slot exists.
-7. Checks if the selected time slot is available.
-8. Checks if another confirmed reservation already exists for the same resource and time slot.
-9. Creates a reservation document.
-10. Inserts the reservation into the `reservations` collection.
-11. Updates the selected resource by marking the selected embedded time slot as unavailable.
+6. Checks if the selected start and end values are valid dates.
+7. Checks if the start date is before the end date.
+8. Checks if the selected interval is inside one availability window of the selected resource.
+9. Checks if the selected interval overlaps with an existing confirmed reservation.
+10. Creates the reservation if all validations pass.
+11. Saves the updated state in MongoDB.
 
 ---
 
-## 10. Advantages of This MongoDB Model
+## 16. Example Valid Reservation
 
-This model has several advantages:
+Resource availability window:
 
-- clear hierarchical representation through `Resource -> timeSlots[]`
-- natural modeling of available intervals
-- suitable for online booking-like workflows
-- supports both physical resources and scheduled services
-- allows the application to load a resource and its available intervals in one document
-- combines embedded documents and references in a practical way
+```txt
+20 May 2026, 12:00 - 15:30
+```
+
+Selected reservation interval:
+
+```txt
+20 May 2026, 12:30 - 13:00
+```
+
+Result:
+
+```txt
+valid
+```
+
+The selected interval is inside the availability window.
 
 ---
 
-## 11. Limitations
+## 17. Example Invalid Reservation
+
+Resource availability window:
+
+```txt
+20 May 2026, 12:00 - 15:30
+```
+
+Selected reservation interval:
+
+```txt
+20 May 2026, 18:00 - 19:00
+```
+
+Result:
+
+```txt
+invalid
+```
+
+The selected interval is outside the availability window.
+
+---
+
+## 18. Example Overlapping Reservation
+
+Existing reservation:
+
+```txt
+20 May 2026, 12:30 - 13:00
+```
+
+New reservation request:
+
+```txt
+20 May 2026, 12:45 - 13:15
+```
+
+Result:
+
+```txt
+invalid
+```
+
+The selected interval overlaps with an existing confirmed reservation.
+
+---
+
+## 19. Advantages of This MongoDB Model
+
+The MongoDB model used in this project has several advantages:
+
+- it represents hierarchical data naturally;
+- resource availability is stored inside the resource document;
+- users can choose custom start and end intervals;
+- the backend can validate reservations based on embedded availability windows;
+- the model supports different resource types;
+- the same structure works for physical resources and scheduled services;
+- TypeScript objects map naturally to MongoDB documents.
+
+---
+
+## 20. Limitations
 
 The model also has limitations:
 
-- embedded arrays may become large if a resource has many time slots
-- updating nested fields requires careful update operations
-- application-level validation is required to prevent invalid reservations
-- references between collections are not automatically enforced like foreign keys in relational databases
-- the current version uses predefined intervals rather than fully dynamic calendar scheduling
+- validation must be implemented at application level;
+- MongoDB does not automatically enforce foreign keys;
+- overlapping intervals must be checked by backend logic;
+- very large availability arrays may require optimization;
+- concurrent reservation requests may require stronger transaction handling in a production system.
 
 ---
 
-## 12. Conclusion
+## 21. Conclusion
 
-This MongoDB model demonstrates how a reservation management system can be implemented using hierarchical and non-relational data structures.
+This MongoDB data model demonstrates how hierarchical and non-relational structures can be used in a reservation management system.
 
-The `resources` collection stores embedded predefined time slots, while the `reservations` collection references users, resources and selected time slots. This combination provides a clear practical example of document-oriented database design.
+The main hierarchical structure is represented by resources that contain embedded `availabilityWindows[]`.
+
+The reservations collection references users and resources while storing the selected custom interval.
+
+This design preserves MongoDB hierarchical modeling and also supports flexible user-selected start and end reservation intervals.
