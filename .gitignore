@@ -1,8 +1,10 @@
-node_modules
-dist
-.env
+# SvelteKit frontend
+frontend/node_modules
+frontend/.svelte-kit
+frontend/build
+frontend/.env
 
-app/node_modules
-app/.svelte-kit
-app/build
-app/.env
+# Express backend
+backend/node_modules
+backend/dist
+backend/.env
