@@ -2,26 +2,29 @@
 
 ## 1. Project Overview
 
-This project is a reservation management system developed as a full-stack academic case study using:
+This project is a full-stack reservation management system developed as an academic case study for the topic:
+
+**Hierarchical and Non-Relational Data Structures in MongoDB**
+
+The application demonstrates how MongoDB can be used to store and manage hierarchical data structures in a practical software system.
+
+The system allows users to create reservations for different types of resources, while the backend validates the selected interval against the availability data stored in MongoDB.
+
+The project uses:
 
 - SvelteKit for the frontend;
 - Express and Node.js for the backend;
 - TypeScript for the application logic;
-- MongoDB for the non-relational database.
-
-The project was created for the topic:
-
-**Hierarchical and Non-Relational Data Structures in MongoDB**
-
-The application demonstrates how a reservation system can use MongoDB documents, embedded arrays and references between collections.
+- MongoDB for the non-relational database;
+- GitHub for version control and project documentation.
 
 ---
 
 ## 2. Academic Purpose
 
-The purpose of this project is to demonstrate how hierarchical and non-relational data structures can be used in a practical software application.
+The purpose of this project is to demonstrate how hierarchical and non-relational data structures can be used in a real software application.
 
-The case study is a reservation management system where users can reserve different types of resources, such as:
+The case study focuses on a reservation management system where users can reserve different resources, such as:
 
 - conference rooms;
 - laboratories;
@@ -32,7 +35,9 @@ The case study is a reservation management system where users can reserve differ
 - media items;
 - guided building tours.
 
-The project also demonstrates a clear separation between frontend and backend, following the model where the Svelte frontend sends reservation data to a separate server endpoint.
+The project also demonstrates a clear separation between frontend and backend.
+
+The frontend is responsible for the user interface, while the backend is responsible for validation, database access and reservation creation.
 
 ---
 
@@ -57,7 +62,7 @@ MongoDB database
 
 The frontend does not connect directly to MongoDB.
 
-The backend is responsible for validation, database access and reservation creation.
+All database operations are handled by the backend.
 
 ---
 
@@ -96,7 +101,9 @@ reservation-system-case-study/
 │   │   ├── routes/
 │   │   │   ├── users.ts
 │   │   │   ├── resources.ts
-│   │   │   ├── reservations.ts
+│   │   │   └── reservations.ts
+│   │   │
+│   │   ├── scripts/
 │   │   │   └── seed.ts
 │   │   │
 │   │   └── server.ts
@@ -149,6 +156,12 @@ It is implemented with SvelteKit and runs on:
 http://localhost:5173
 ```
 
+The main reservation page is available at:
+
+```txt
+http://localhost:5173/reservations
+```
+
 The frontend is responsible for:
 
 - displaying the homepage;
@@ -156,7 +169,9 @@ The frontend is responsible for:
 - loading users from the backend;
 - loading resources from the backend;
 - loading reservations from the backend;
-- allowing the user to choose a start and end interval;
+- allowing the user to choose a user;
+- allowing the user to choose a resource;
+- allowing the user to choose a reservation interval;
 - sending reservation requests to the backend.
 
 The frontend does not contain backend API routes and does not connect directly to MongoDB.
@@ -207,13 +222,17 @@ resources
 reservations
 ```
 
+MongoDB is used because it allows the project to store nested and hierarchical data structures inside documents.
+
+The most important example is the `resources` collection, where each resource contains embedded availability windows.
+
 ---
 
 ## 9. Users Collection
 
 The `users` collection stores people who can create reservations.
 
-Example:
+Example document:
 
 ```json
 {
@@ -239,9 +258,9 @@ guest
 
 The `resources` collection stores reservable resources and services.
 
-Each resource contains embedded availability windows.
+Each resource contains an embedded array of availability windows.
 
-Example:
+Example document:
 
 ```json
 {
@@ -308,7 +327,7 @@ This structure demonstrates how MongoDB can store nested data inside a single do
 The project uses both:
 
 - embedded documents: `Resource -> availabilityWindows[]`;
-- references: `Reservation -> userId`, `resourceId`.
+- references between collections: `Reservation -> userId`, `resourceId`.
 
 This combination demonstrates a practical non-relational data model.
 
@@ -318,7 +337,7 @@ This combination demonstrates a practical non-relational data model.
 
 The `reservations` collection stores confirmed reservations.
 
-Example:
+Example document:
 
 ```json
 {
@@ -330,7 +349,7 @@ Example:
     "end": "2026-05-20T10:00:00.000Z"
   },
   "status": "confirmed",
-  "createdAt": "2026-05-05T20:00:00.000Z"
+  "createdAt": "2026-05-20T08:00:00.000Z"
 }
 ```
 
@@ -342,11 +361,9 @@ A reservation references:
 
 ---
 
-## 13. Why Start and End Are Selected by the User
+## 13. Reservation Validation
 
-The current version allows the user to select a custom start and end interval from the frontend form.
-
-The frontend sends this interval to the backend:
+When a user creates a reservation, the frontend sends the following data to the backend:
 
 ```json
 {
@@ -359,15 +376,19 @@ The frontend sends this interval to the backend:
 }
 ```
 
-The backend then validates whether the selected interval:
+The backend validates whether:
 
-1. has a valid start date;
-2. has a valid end date;
-3. has the start date before the end date;
-4. is inside one of the resource availability windows;
-5. does not overlap an existing confirmed reservation.
+1. the selected user exists;
+2. the selected resource exists;
+3. the start date is valid;
+4. the end date is valid;
+5. the start date is before the end date;
+6. the selected interval is inside one of the resource availability windows;
+7. the selected interval does not overlap an existing confirmed reservation.
 
-This keeps the reservation process flexible while preserving the hierarchical MongoDB model.
+If all validations pass, the reservation is saved in MongoDB.
+
+If the reservation is invalid, the backend returns validation errors.
 
 ---
 
@@ -378,12 +399,19 @@ The backend exposes the following API endpoints:
 | Endpoint | Method | Description |
 |---|---|---|
 | `/` | GET | Backend information |
-| `/health` | GET | Checks MongoDB connection |
+| `/health` | GET | Checks backend and MongoDB connection |
 | `/users` | GET | Returns all users |
 | `/resources` | GET | Returns all resources |
 | `/reservations` | GET | Returns all reservations |
-| `/reservations` | POST | Creates a reservation |
-| `/seed` | POST | Inserts sample data into MongoDB |
+| `/reservations` | POST | Creates a new reservation |
+
+The database seed is executed from the terminal using:
+
+```bash
+npm run seed
+```
+
+The seed is no longer executed by opening `/seed` in the browser.
 
 ---
 
@@ -399,7 +427,7 @@ The reservation process works as follows:
 6. The frontend loads reservations from `GET /reservations`.
 7. The user selects a user.
 8. The user selects a resource.
-9. The user selects a start and end interval.
+9. The user chooses a reservation interval.
 10. The frontend sends a POST request to `http://localhost:3000/reservations`.
 11. The backend loads the current state from MongoDB.
 12. The backend validates the reservation request.
@@ -418,23 +446,17 @@ The domain layer is stored in:
 backend/src/domain/
 ```
 
-Files:
+Main files:
 
 | File | Purpose |
 |---|---|
 | `types.ts` | Defines User, Resource, TimeSlot, Reservation and SystemState |
-| `maybe.ts` | Defines Maybe type |
+| `maybe.ts` | Defines the Maybe type |
 | `validation.ts` | Defines validation result types |
-| `state.ts` | Defines StateFn |
-| `reservation.ts` | Implements createReservation |
+| `state.ts` | Defines the StateFn type |
+| `reservation.ts` | Implements reservation creation logic |
 
-The main function is:
-
-```txt
-createReservation
-```
-
-It validates the reservation and returns either:
+The main reservation logic validates the reservation and returns either:
 
 - a valid reservation;
 - a list of validation errors.
@@ -449,7 +471,13 @@ The backend uses a local environment file:
 backend/.env
 ```
 
-Example:
+The repository contains an example environment file:
+
+```txt
+backend/.env.example
+```
+
+Example configuration:
 
 ```env
 PORT=3000
@@ -457,88 +485,117 @@ MONGODB_URI=mongodb://127.0.0.1:27017
 MONGODB_DB=reservation_system
 ```
 
-The real `.env` file is ignored by Git.
-
-The repository contains only:
-
-```txt
-backend/.env.example
-```
+The real `.env` file is ignored by Git and should not be committed.
 
 ---
 
-## 18. Installation
+## 18. Prerequisites
+
+Before running the project, make sure the following are installed:
+
+- Node.js;
+- npm;
+- MongoDB.
+
+MongoDB must be running locally before starting the backend.
+
+---
+
+## 19. Installation and Running the Application
 
 Clone the repository:
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/Costel311/reservation-system-case-study.git
 cd reservation-system-case-study
 ```
 
-Install backend dependencies:
+The project requires two separate terminals:
 
-```bash
-cd backend
-npm install
-```
-
-Install frontend dependencies:
-
-```bash
-cd ../frontend
-npm install
-```
+- one terminal for the backend;
+- one terminal for the frontend.
 
 ---
 
-## 19. Running the Full Application
+### Terminal 1: Backend
 
-The project requires two terminals.
-
-Terminal 1: start the backend.
+Go to the backend folder:
 
 ```bash
 cd backend
+```
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Create the local environment file:
+
+```bash
+copy .env.example .env
+```
+
+For macOS or Linux, use:
+
+```bash
+cp .env.example .env
+```
+
+Seed the database:
+
+```bash
+npm run seed
+```
+
+Start the backend development server:
+
+```bash
 npm run dev
 ```
 
-Backend URL:
+The backend will run on:
 
 ```txt
 http://localhost:3000
 ```
 
-Terminal 2: start the frontend.
+---
+
+### Terminal 2: Frontend
+
+Open a separate terminal.
+
+From the project root, go to the frontend folder:
 
 ```bash
 cd frontend
+```
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Start the frontend development server:
+
+```bash
 npm run dev
 ```
 
-Frontend URL:
+The application can be opened at:
 
 ```txt
-http://localhost:5173
+http://localhost:5173/reservations
 ```
 
 ---
 
-## 20. Seeding the Database
+## 20. Backend Test URLs
 
-After starting the backend, run:
-
-```powershell
-Invoke-RestMethod -Method POST http://localhost:3000/seed
-```
-
-This inserts sample users, resources, availability windows and an empty reservations collection.
-
----
-
-## 21. Testing
-
-Backend test URLs:
+After starting the backend, the following URLs can be tested in the browser:
 
 ```txt
 http://localhost:3000
@@ -548,34 +605,84 @@ http://localhost:3000/resources
 http://localhost:3000/reservations
 ```
 
-Frontend test URLs:
+---
+
+## 21. Frontend Test URLs
+
+After starting the frontend, the following URLs can be tested in the browser:
 
 ```txt
 http://localhost:5173
 http://localhost:5173/reservations
 ```
 
-Example valid reservation for Conference Room A:
+The main reservation interface is:
 
 ```txt
-Start: 20 May 2026, 12:30
-End:   20 May 2026, 13:00
+http://localhost:5173/reservations
 ```
-
-This is valid if it is inside the displayed availability window.
-
-Example invalid reservation:
-
-```txt
-Start: 20 May 2026, 21:00
-End:   20 May 2026, 22:00
-```
-
-This is invalid because it is outside the resource availability windows.
 
 ---
 
-## 22. Documentation
+## 22. Important Note About Database Seeding
+
+The database seed is now executed from the terminal using:
+
+```bash
+npm run seed
+```
+
+It is no longer necessary to open the following URL in the browser:
+
+```txt
+http://localhost:3000/seed
+```
+
+The seed command inserts sample users, resources, availability windows and reservations into MongoDB.
+
+Correct command:
+
+```bash
+npm run seed
+```
+
+Old method no longer required:
+
+```txt
+http://localhost:3000/seed
+```
+
+---
+
+## 23. Example Running Steps
+
+A complete backend run example:
+
+```bash
+cd backend
+npm install
+copy .env.example .env
+npm run seed
+npm run dev
+```
+
+Then, in a separate terminal:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open the application at:
+
+```txt
+http://localhost:5173/reservations
+```
+
+---
+
+## 24. Documentation
 
 Additional documentation is available in:
 
@@ -595,7 +702,7 @@ The documentation explains:
 
 ---
 
-## 23. Conference Article
+## 25. Conference Article
 
 The repository includes a conference article draft in:
 
@@ -607,7 +714,7 @@ The article presents the project as a case study for hierarchical and non-relati
 
 ---
 
-## 24. Conclusion
+## 26. Conclusion
 
 This project demonstrates how SvelteKit, Express, TypeScript and MongoDB can be combined into a clearly separated full-stack application.
 
